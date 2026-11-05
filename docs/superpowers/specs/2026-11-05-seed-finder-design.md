@@ -1,6 +1,6 @@
 # Seed Finder design
 
-Date: 2026-11-05. Status: awaiting Tamair's review.
+Date: 2026-11-05. Status: approved by Tamair on 2026-11-05.
 
 ## Goal
 
@@ -149,3 +149,7 @@ The app also verifies the `Cf-Access-Jwt-Assertion` token, so it does not rely o
 ## Out of scope for this version
 
 Multi-user accounts, Nether and End maps, a pan-and-zoom infinite map, editing weights from the page, and 3D terrain.
+
+## Future scale
+
+Deeper searches are a likely later expansion. In order: run cheap spawn and structure checks before biome generation, add a coarse biome pass before the detailed one, then raise the worker limit. Consider moving the search loop to Rust or C only if profiling shows the Python around cubiomes is the bottleneck. In the feasibility test, cubiomes biome generation took about 178 of 190 ms per seed, and Rust would not speed that up without rewriting the generator. Keep `app/scoring.py` a pure function so this stays possible.

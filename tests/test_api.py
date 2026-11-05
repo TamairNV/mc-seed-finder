@@ -238,3 +238,15 @@ def test_old_biomes_layer_name_is_gone(client):
     # its cached images read the map at y=60, so they must not be served any more
     client.post("/api/seeds", json={"seed": "5"})
     assert client.get("/api/seeds/5/layers/biomes.png").status_code == 404
+
+
+def test_layers_can_be_requested_at_each_map_size(client):
+    client.post("/api/seeds", json={"seed": "5"})
+    for blocks in (1000, 2000):
+        r = client.get(f"/api/seeds/5/layers/surface.png?blocks={blocks}")
+        assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+
+
+def test_layers_refuse_other_map_sizes(client):
+    client.post("/api/seeds", json={"seed": "5"})
+    assert client.get("/api/seeds/5/layers/surface.png?blocks=4000").status_code == 404

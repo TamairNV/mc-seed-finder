@@ -8,6 +8,12 @@ from app.worker import Pool, WorkerCrashed, score_seed
 SEED = 3874681947099440070
 
 
+def scoring_rejects(biome):
+    from app.scoring import rejection
+
+    return rejection(biome) is not None
+
+
 def test_worker_crash_is_contained_and_pool_recovers():
     pool = Pool(workers=1)
     with pytest.raises(WorkerCrashed):
@@ -43,7 +49,7 @@ def test_score_grid_reads_the_surface_not_caves(monkeypatch):
     monkeypatch.setattr(worker, "evaluate", spy)
     hilly = -7059255982915085877
     worker.score_seed(hilly)
-    expected = worker._biome_names()[cubiomes.surface_grid(hilly, 16, -128, -128, 256, 256) & 255]
+    expected = worker._biome_names()[cubiomes.surface_grid(hilly, 16, -31, -31, 62, 62) & 255]
     assert (seen["biomes"] == expected).all()
     assert not set(seen["biomes"].ravel().tolist()) & scoring.CAVE_BIOMES
 
@@ -57,6 +63,48 @@ def test_point_reads_surface_cave_and_height():
     assert all(isinstance(s["height"], int) and -64 <= s["height"] <= 320 for s in spots)
     assert {s["cave_biome"] for s in spots} - {None} <= {"dripstone_caves", "lush_caves", "deep_dark"}
     assert any(s["cave_biome"] for s in spots) and any(s["cave_biome"] is None for s in spots)
+
+
+def test_search_skips_the_scan_for_rejected_spawns(monkeypatch):
+    from app import cubiomes, worker
+
+    rejected = next(s for s in range(500) if scoring_rejects(cubiomes.biome_name(cubiomes.spawn(s)[2])))
+    allowed = next(s for s in range(500) if not scoring_rejects(cubiomes.biome_name(cubiomes.spawn(s)[2])))
+
+    def forbidden(*args):
+        raise AssertionError("scanned the biomes of a rejected seed")
+
+    assert worker.search_seed(allowed).seed == allowed
+    monkeypatch.setattr(cubiomes, "surface_grid", forbidden)
+    assert worker.search_seed(rejected) is None
+
+
+def test_search_and_manual_scoring_agree():
+    from app import worker
+
+    assert worker.search_seed(SEED).result.score == worker.score_seed(SEED).result.score
+
+
+def test_manual_scoring_still_explains_a_rejected_seed():
+    from app import cubiomes, worker
+
+    rejected = next(s for s in range(500) if scoring_rejects(cubiomes.biome_name(cubiomes.spawn(s)[2])))
+    result = worker.score_seed(rejected).result
+    assert result.rejected_reason and result.breakdown["variety"] >= 0
+
+
+def test_score_covers_the_central_thousand_blocks():
+    from app import worker
+
+    assert worker.GRID_CELLS * worker.CELL_BLOCKS == 992
+
+
+def test_pool_uses_eight_workers_by_default():
+    assert Pool().workers == 8
+
+
+def test_score_reports_biome_count():
+    assert 1 <= score_seed(SEED).result.biome_count <= 60
 
 
 def test_structures_cover_the_wider_map():

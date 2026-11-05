@@ -136,3 +136,20 @@ def test_search_leaves_existing_manual_seed_alone(store):
 def test_status_before_any_search(store):
     status = SearchManager(FakePool(), store, scorer=Scorer()).status()
     assert status["running"] is False and status["tried"] == 0 and status["target"] == 0
+
+
+def test_rejected_seed_from_the_fast_scorer_counts_as_tried(tmp_path):
+    store = Store(str(tmp_path / "s.db"))
+
+    class Inline:
+        workers = 1
+
+        def run(self, fn, *args):
+            return fn(*args)
+
+    search = SearchManager(Inline(), store, scorer=lambda seed: None)
+    search.start(5)
+    while search.status()["running"]:
+        time.sleep(0.01)
+    status = search.status()
+    assert status["tried"] == 5 and status["error"] is None and store.list("score") == []

@@ -23,7 +23,7 @@ def random_seed() -> int:
 
 
 class SearchManager:
-    def __init__(self, pool, store, scorer=worker.score_seed):
+    def __init__(self, pool, store, scorer=worker.search_seed):
         self._pool = pool
         self._store = store
         self._scorer = scorer
@@ -111,8 +111,8 @@ class SearchManager:
                     with self._lock:
                         self._error = str(e)
 
-    def _keep(self, scored: worker.Scored) -> None:
-        if scored.result.rejected_reason:
+    def _keep(self, scored: worker.Scored | None) -> None:
+        if scored is None or scored.result.rejected_reason:
             return
         self._order += 1
         heapq.heappush(self._top, (scored.result.score, self._order, scored))

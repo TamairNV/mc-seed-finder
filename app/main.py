@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from app import seeds, worker
 from app.auth import AccessVerifier, Denied, PanelVerifier
 from app.tnv_access import AccessGuard
-from app.render import MAP_EDGE_BLOCKS, Layers
+from app.render import MAP_DEFAULT, MAP_EDGE_BLOCKS, Layers
 from app.search import AlreadyRunning, SearchManager, random_seed
 from app.store import Store
 
@@ -121,10 +121,10 @@ def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifi
         return store.get(number)
 
     @app.get("/api/seeds/{seed}/layers/{layer}.png")
-    def get_layer(seed: str, layer: str):
+    def get_layer(seed: str, layer: str, blocks: int = MAP_DEFAULT):
         number, _ = saved_seed(seed)
         try:
-            path = layers.path(number, layer)
+            path = layers.path(number, layer, blocks)
         except ValueError:
             raise HTTPException(404, "Unknown map layer") from None
         return FileResponse(path, media_type="image/png")

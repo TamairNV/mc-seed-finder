@@ -6,20 +6,23 @@ import numpy as np
 
 SPAWN_TOP = {"cherry_grove", "meadow", "mushroom_fields", "badlands", "eroded_badlands", "wooded_badlands"}
 SPAWN_MIDDLE = {"plains", "savanna", "jungle", "birch_forest"}
-SPAWN_POINTS = (20, 12, 5)
+SPAWN_POINTS = (5, 3, 1)
 
-VARIETY_MAX = 15
-VARIETY_LOW, VARIETY_HIGH = 30, 55
+# Half for how many biomes there are, half for how evenly they're mixed. The ranges come from
+# 1,200 random seeds at this area and detail, running from a dull seed to about the best seen.
+VARIETY_MAX = 40
+BIOME_COUNT_LOW, BIOME_COUNT_HIGH = 7, 22
+BIOME_MIX_LOW, BIOME_MIX_HIGH = 3.5, 12.0
 
 RARE_MAX = 25
 RARE_WEIGHTS = {
-    "mushroom_fields": 6, "cherry_grove": 4, "ice_spikes": 4, "eroded_badlands": 4, "pale_garden": 3,
-    "badlands": 2, "bamboo_jungle": 2, "jagged_peaks": 2, "mangrove_swamp": 2, "old_growth_birch_forest": 2,
+    "mushroom_fields": 12, "cherry_grove": 8, "ice_spikes": 8, "eroded_badlands": 8, "pale_garden": 6,
+    "badlands": 4, "bamboo_jungle": 4, "jagged_peaks": 4, "mangrove_swamp": 4, "old_growth_birch_forest": 4,
 }
 
 STRUCTURE_WEIGHTS = {
-    "Village": 8, "Trial_Chambers": 6, "Mansion": 5, "Ancient_City": 4, "Monument": 3,
-    "Desert_Pyramid": 1, "Jungle_Temple": 1, "Outpost": 1, "Trail_Ruins": 1,
+    "Village": 6, "Trial_Chambers": 4, "Mansion": 3, "Ancient_City": 3, "Monument": 2,
+    "Desert_Pyramid": 0.5, "Jungle_Temple": 0.5, "Outpost": 0.5, "Trail_Ruins": 0.5,
 }
 
 TERRAIN_MAX = 10
@@ -27,7 +30,8 @@ TERRAIN_PEAK = 0.7
 TERRAIN_FULL_SHARE = 0.15  # real seeds top out near 11%
 VALLEY_LIMIT = -0.6
 
-NEAR_BLOCKS = 2048
+STRUCTURE_NEAR_BLOCKS = 2048
+RARE_NEAR_BLOCKS = 1000
 
 CAVE_BIOMES = {"dripstone_caves", "lush_caves", "deep_dark"}
 
@@ -52,10 +56,11 @@ class Result:
     mean_weirdness: float
     rejected_reason: str | None
     peak_share: float = 0.0
+    biome_count: int = 0
 
 
-def _near(distance: float) -> float:
-    return max(0.0, 1.0 - distance / NEAR_BLOCKS)
+def _near(distance: float, limit: int) -> float:
+    return max(0.0, 1.0 - distance / limit)
 
 
 def _spawn_points(biome: str) -> int:
@@ -63,9 +68,21 @@ def _spawn_points(biome: str) -> int:
     return top if biome in SPAWN_TOP else middle if biome in SPAWN_MIDDLE else low
 
 
-def _variety_points(biomes: np.ndarray) -> float:
-    share = (len(set(biomes.ravel().tolist()) - CAVE_BIOMES) - VARIETY_LOW) / (VARIETY_HIGH - VARIETY_LOW)
-    return VARIETY_MAX * min(1.0, max(0.0, share))
+def _surface_counts(biomes: np.ndarray) -> np.ndarray:
+    names, counts = np.unique(biomes, return_counts=True)
+    return counts[[name not in CAVE_BIOMES for name in names]]
+
+
+def _scale(value: float, low: float, high: float) -> float:
+    return min(1.0, max(0.0, (value - low) / (high - low)))
+
+
+def _variety_points(counts: np.ndarray) -> float:
+    """The mix is the number of equally common biomes with the same spread, so tiny patches add little."""
+    shares = counts / counts.sum()
+    mix = float(np.exp(-(shares * np.log(shares)).sum()))
+    return VARIETY_MAX / 2 * (_scale(counts.size, BIOME_COUNT_LOW, BIOME_COUNT_HIGH)
+                              + _scale(mix, BIOME_MIX_LOW, BIOME_MIX_HIGH))
 
 
 def _rare_points(facts: WorldFacts) -> float:
@@ -76,7 +93,7 @@ def _rare_points(facts: WorldFacts) -> float:
     for name, weight in RARE_WEIGHTS.items():
         rows, cols = np.nonzero(facts.biomes == name)
         if rows.size:
-            total += weight * _near(float(np.hypot(xs[cols], zs[rows]).min()))
+            total += weight * _near(float(np.hypot(xs[cols], zs[rows]).min()), RARE_NEAR_BLOCKS)
     return min(RARE_MAX, total)
 
 
@@ -85,7 +102,7 @@ def _structure_points(facts: WorldFacts) -> float:
     for kind, x, z in facts.structures:
         d = float(np.hypot(x - facts.spawn[0], z - facts.spawn[1]))
         nearest[kind] = min(d, nearest.get(kind, d))
-    return sum(STRUCTURE_WEIGHTS.get(kind, 0) * _near(d) for kind, d in nearest.items())
+    return sum(STRUCTURE_WEIGHTS.get(kind, 0) * _near(d, STRUCTURE_NEAR_BLOCKS) for kind, d in nearest.items())
 
 
 def _peaks_and_valleys(weirdness):
@@ -106,7 +123,7 @@ def terrain_hint(weirdness: float) -> str:
     return "Mixed terrain"
 
 
-def _rejection(biome: str) -> str | None:
+def rejection(biome: str) -> str | None:
     if biome in SPRUCE_SPAWNS:
         return f"Spawns in a spruce biome ({biome})"
     if "ocean" in biome:
@@ -116,18 +133,20 @@ def _rejection(biome: str) -> str | None:
 
 def evaluate(facts: WorldFacts) -> Result:
     share = _peak_share(facts.weirdness)
+    counts = _surface_counts(facts.biomes)
     breakdown = {
         "spawn_biome": float(_spawn_points(facts.spawn_biome)),
-        "variety": _variety_points(facts.biomes),
+        "variety": _variety_points(counts),
         "rare_biomes": _rare_points(facts),
         "structures": _structure_points(facts),
         "terrain": TERRAIN_MAX * min(1.0, share / TERRAIN_FULL_SHARE),
     }
-    reason = _rejection(facts.spawn_biome)
+    reason = rejection(facts.spawn_biome)
     return Result(
         score=0.0 if reason else sum(breakdown.values()),
         breakdown=breakdown,
         mean_weirdness=float(facts.weirdness.mean()),
         rejected_reason=reason,
         peak_share=share,
+        biome_count=int(counts.size),
     )

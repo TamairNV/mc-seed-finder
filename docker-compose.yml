@@ -16,7 +16,7 @@ services:
     networks: [default, access-net]
     volumes:
       - ./data:/app/data
-    cpus: 4
+    cpus: 8
     mem_limit: 2g
     read_only: true
     tmpfs:

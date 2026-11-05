@@ -22,12 +22,14 @@ CREATE TABLE IF NOT EXISTS seeds (
     source TEXT NOT NULL,
     created_at TEXT NOT NULL,
     peak_share REAL NOT NULL DEFAULT 0,
-    shortlisted INTEGER NOT NULL DEFAULT 0
+    shortlisted INTEGER NOT NULL DEFAULT 0,
+    biome_count INTEGER NOT NULL DEFAULT 0
 );
 """
 _ADDED_COLUMNS = {
     "peak_share": "REAL NOT NULL DEFAULT 0",
     "shortlisted": "INTEGER NOT NULL DEFAULT 0",
+    "biome_count": "INTEGER NOT NULL DEFAULT 0",
 }
 _ORDER = {
     "score": "rejected_reason IS NOT NULL, score DESC, created_at DESC",
@@ -57,8 +59,8 @@ class Store:
             db.execute(
                 """
                 INSERT INTO seeds (seed, input_text, score, breakdown, spawn_x, spawn_z, spawn_biome, mean_weirdness,
-                                   rejected_reason, structures, source, created_at, peak_share)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   rejected_reason, structures, source, created_at, peak_share, biome_count)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(seed) DO UPDATE SET
                     input_text = COALESCE(excluded.input_text, input_text),
                     score = excluded.score,
@@ -70,11 +72,12 @@ class Store:
                     rejected_reason = excluded.rejected_reason,
                     structures = excluded.structures,
                     peak_share = excluded.peak_share,
+                    biome_count = excluded.biome_count,
                     source = CASE WHEN source = 'manual' THEN 'manual' ELSE excluded.source END
                 """,
                 (str(seed), input_text, result.score, json.dumps(result.breakdown), spawn[0], spawn[1],
                  spawn_biome, result.mean_weirdness, result.rejected_reason, json.dumps(structures),
-                 source, datetime.now(timezone.utc).isoformat(), result.peak_share),
+                 source, datetime.now(timezone.utc).isoformat(), result.peak_share, result.biome_count),
             )
 
     def get(self, seed: int) -> dict | None:

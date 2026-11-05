@@ -128,3 +128,23 @@ def test_existing_database_gets_new_columns_and_keeps_rows(tmp_path):
     old.close()
     row = Store(path).get(5)
     assert row["input_text"] == "mine" and row["shortlisted"] is False and row["peak_share"] == 0
+
+
+def test_biome_count_is_saved(tmp_path):
+    store = Store(str(tmp_path / "s.db"))
+    result = Result(50.0, {"variety": 20.0}, 0.0, None, 0.1, 17)
+    store.save(5, None, result, (0, 0), "plains", [], "manual")
+    assert store.get(5)["biome_count"] == 17
+
+
+def test_old_database_gains_biome_count(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "s.db")
+    Store(path)
+    db = sqlite3.connect(path)
+    db.execute("ALTER TABLE seeds DROP COLUMN biome_count")
+    db.commit()
+    db.close()
+    Store(path)
+    assert "biome_count" in {r[1] for r in sqlite3.connect(path).execute("PRAGMA table_info(seeds)")}

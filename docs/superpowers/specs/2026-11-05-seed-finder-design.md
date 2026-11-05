@@ -166,6 +166,14 @@ Multi-user accounts, Nether and End maps, a pan-and-zoom infinite map, editing w
 - **Height layer:** cubiomes' approximate height on a fixed colour scale, off by default and built when first switched on.
 - The `biomes` layer is replaced by `surface`, so images cached from y=60 are never served again.
 
+## Variety scoring and smaller first scan (2026-11-05, requested by Tamair)
+
+- **Goal:** find seeds with lots of different biomes close together, not good spawns with samey land.
+- **Score out of 100:** biome variety 40 (half biome count, half how evenly they're mixed), rare biomes 25, structures 20, terrain 10, spawn biome 5. Spruce and ocean spawns are still rejected.
+- **Area:** biomes and terrain are scored over the central 1000×1000 blocks at 1:16. Structures are still checked out to 2048 blocks because that check is cheap. This describes the land around spawn, not the wider world.
+- **Search:** rejected spawns skip the biome scan. The worker count is 8, and the container limit is 8 CPUs.
+- **Map:** opens at 1000×1000. The Expand button steps to 2000×2000, then 6144×6144. Expanding doesn't change the score.
+
 ## Future scale
 
 Deeper searches are a likely later expansion. In order: run cheap spawn and structure checks before biome generation, add a coarse biome pass before the detailed one, then raise the worker limit. Consider moving the search loop to Rust or C only if profiling shows the Python around cubiomes is the bottleneck. In the feasibility test, cubiomes biome generation took about 178 of 190 ms per seed, and Rust would not speed that up without rewriting the generator. Keep `app/scoring.py` a pure function so this stays possible.

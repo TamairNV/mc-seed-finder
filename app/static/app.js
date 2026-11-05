@@ -1,6 +1,6 @@
 // Seeds are always JS strings here. Never convert them to numbers: they can exceed 2^53.
 const $ = (id) => document.getElementById(id);
-const MAP_BLOCKS = 6144;
+const MAP_SIZES = [1000, 2000, 6144];
 const MAX_ZOOM = 8;
 const ZOOM_BUTTON_STEP = 1.5;
 const PAST_EDGE = 0.1;  // how far past its edge the map can be dragged, as a share of its width
@@ -9,12 +9,13 @@ const STRUCTURES = {
   Desert_Pyramid: "#e8c88a", Jungle_Temple: "#54d15a", Outpost: "#ff4d6d", Trail_Ruins: "#c49a6c",
 };
 const COMPONENTS = {
-  spawn_biome: ["Spawn biome", 20], variety: ["Variety", 15], rare_biomes: ["Rare biomes", 25],
-  structures: ["Structures", 30], terrain: ["Terrain", 10],
+  variety: ["Biome variety", 40], rare_biomes: ["Rare biomes", 25], structures: ["Structures", 20],
+  terrain: ["Terrain", 10], spawn_biome: ["Spawn biome", 5],
 };
 const LAYERS = ["weirdness", "surface", "underground", "height"];
 const hidden = new Set(["Trial_Chambers", "Outpost", "Trail_Ruins"]);  // common enough to crowd the map
 let selected = null;
+let mapBlocks = MAP_SIZES[0];
 let hoverTimer = null;
 let wasRunning = false;
 const view = { scale: 1, x: 0, y: 0 };
@@ -92,8 +93,8 @@ function drawMarkers() {
   const ctx = canvas.getContext("2d");
   ctx.scale(ratio, ratio);
   if (!selected) return;
-  const sx = (block) => view.x + view.scale * width * (block / MAP_BLOCKS + 0.5);
-  const sz = (block) => view.y + view.scale * width * (block / MAP_BLOCKS + 0.5);
+  const sx = (block) => view.x + view.scale * width * (block / mapBlocks + 0.5);
+  const sz = (block) => view.y + view.scale * width * (block / mapBlocks + 0.5);
   for (const [kind, x, z] of selected.structures) {
     if (hidden.has(kind)) continue;
     ctx.beginPath();
@@ -178,9 +179,11 @@ function renderBreakdown(row) {
   }
   const facts = document.createElement("p");
   facts.className = "status";
+  const onMap = row.structures.filter(([, x, z]) => Math.max(Math.abs(x), Math.abs(z)) < mapBlocks / 2).length;
   facts.textContent = `Spawn ${row.spawn_x}, ${row.spawn_z} in ${pretty(row.spawn_biome)}. ` +
-    `Peak terrain ${peakPercent(row)}. Average weirdness ${row.mean_weirdness.toFixed(3)} (usually near 0). ` +
-    `${row.structures.length} structures on this map.`;
+    `${row.biome_count} biomes nearby. Peak terrain ${peakPercent(row)}. ` +
+    `Average weirdness ${row.mean_weirdness.toFixed(3)} (usually near 0). ` +
+    `${onMap} structures on this map.`;
   box.append(facts);
 }
 
@@ -188,6 +191,7 @@ function selectSeed(row) {
   const changed = selected?.seed !== row.seed;
   selected = row;
   $("map-empty").hidden = true;
+  if (changed) setMapSize(MAP_SIZES[0]);
   renderBreakdown(row);
   for (const tr of $("seed-list").children) tr.classList.toggle("selected", tr.dataset.seed === row.seed);
   if (!changed) return;
@@ -202,9 +206,16 @@ function wantedLayers() {
   return wanted;
 }
 
-function requestLayer(layer, seed) {
+function setMapSize(blocks) {
+  mapBlocks = blocks;
+  const next = MAP_SIZES[(MAP_SIZES.indexOf(blocks) + 1) % MAP_SIZES.length];
+  const label = `${next}×${next}`;
+  $("expand-map").textContent = next > blocks ? `Expand to ${label}` : `Back to ${label}`;
+}
+
+function requestLayer(layer, key) {
   const img = $(`layer-${layer}`);
-  img.dataset.seed = seed;
+  img.dataset.key = key;
   delete img.dataset.settled;
   img.onload = () => { img.dataset.settled = "loaded"; syncLayers(); };
   img.onerror = () => {
@@ -212,21 +223,21 @@ function requestLayer(layer, seed) {
     syncLayers();
     showError(new Error(`Couldn't load the ${layer} map.`));
   };
-  img.src = `/api/seeds/${seed}/layers/${layer}.png`;
+  img.src = `/api/seeds/${selected.seed}/layers/${layer}.png?blocks=${mapBlocks}`;
 }
 
 function syncLayers() {
   if (!selected) return;
-  const seed = selected.seed;
+  const key = `${selected.seed}:${mapBlocks}`;
   const wanted = wantedLayers();
   let waiting = false;
   for (const layer of LAYERS) {
     const img = $(`layer-${layer}`);
     const want = wanted.includes(layer);
-    if (want && img.dataset.seed !== seed) requestLayer(layer, seed);
-    const current = img.dataset.seed === seed;
+    if (want && img.dataset.key !== key) requestLayer(layer, key);
+    const current = img.dataset.key === key;
     if (want && current && !img.dataset.settled) waiting = true;
-    // an old seed's map must not sit under the new seed's markers
+    // an old seed's or size's map must not sit under the new seed's markers
     img.hidden = !(want && current && img.dataset.settled === "loaded");
   }
   $("map-loading").hidden = !waiting;
@@ -301,11 +312,11 @@ async function pollSearch() {
 function onHover(event) {
   if (!selected) return;
   const rect = $("map").getBoundingClientRect();
-  const toBlock = (offset, shift) => Math.floor(((offset - shift) / (view.scale * rect.width) - 0.5) * MAP_BLOCKS);
+  const toBlock = (offset, shift) => Math.floor(((offset - shift) / (view.scale * rect.width) - 0.5) * mapBlocks);
   const x = toBlock(event.clientX - rect.left, view.x);
   const z = toBlock(event.clientY - rect.top, view.y);
   clearTimeout(hoverTimer);
-  if (Math.abs(x + 0.5) > MAP_BLOCKS / 2 || Math.abs(z + 0.5) > MAP_BLOCKS / 2) {
+  if (Math.abs(x + 0.5) > mapBlocks / 2 || Math.abs(z + 0.5) > mapBlocks / 2) {
     $("hover").textContent = "Past the edge of the map";
     return;
   }
@@ -418,6 +429,13 @@ $("shortlist-filter").onchange = refreshList;
 $("biome-opacity").oninput = applyOpacity;
 $("height-opacity").oninput = () => { applyOpacity(); syncLayers(); };
 $("biome-mode").onchange = syncLayers;
+$("expand-map").onclick = () => {
+  if (!selected) return;
+  setMapSize(MAP_SIZES[(MAP_SIZES.indexOf(mapBlocks) + 1) % MAP_SIZES.length]);
+  resetView();
+  renderBreakdown(selected);
+  syncLayers();
+};
 bindMap();
 
 buildToggles();

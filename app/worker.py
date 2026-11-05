@@ -10,9 +10,10 @@ from dataclasses import dataclass
 import numpy as np
 
 from app import cubiomes, render
-from app.scoring import Result, WorldFacts, evaluate, terrain_hint
+from app.scoring import Result, WorldFacts, evaluate, rejection, terrain_hint
 
-GRID_CELLS = 256
+WORKERS = 8
+GRID_CELLS = 62  # about 1000 blocks across at this cell size
 GRID_ORIGIN_16 = -GRID_CELLS // 2
 CELL_BLOCKS = 16
 
@@ -41,7 +42,18 @@ def _biome_names() -> np.ndarray:
 
 
 def score_seed(seed: int) -> Scored:
+    return _score(seed, *cubiomes.spawn(seed))
+
+
+def search_seed(seed: int) -> Scored | None:
+    """Like score_seed, but a rejected spawn costs almost nothing and returns None."""
     x, z, biome = cubiomes.spawn(seed)
+    if rejection(cubiomes.biome_name(biome)):
+        return None
+    return _score(seed, x, z, biome)
+
+
+def _score(seed: int, x: int, z: int, biome: int) -> Scored:
     biomes = cubiomes.surface_grid(seed, CELL_BLOCKS, GRID_ORIGIN_16, GRID_ORIGIN_16, GRID_CELLS, GRID_CELLS)
     weirdness = cubiomes.weirdness_grid(seed, GRID_ORIGIN_16 * 4, GRID_ORIGIN_16 * 4, GRID_CELLS, GRID_CELLS, 4)
     structures = [(s.kind, s.x, s.z) for s in cubiomes.structures(seed, render.MAP_EDGE_BLOCKS)]
@@ -69,7 +81,7 @@ def point(seed: int, x: int, z: int) -> dict:
 
 
 class Pool:
-    def __init__(self, workers: int = 4):
+    def __init__(self, workers: int = WORKERS):
         self.workers = workers
         self._lock = threading.Lock()
         self._executor = self._new_executor()

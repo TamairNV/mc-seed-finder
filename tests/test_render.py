@@ -10,8 +10,29 @@ SEED = 3874681947099440070
 
 
 @pytest.mark.parametrize("layer", ["weirdness", "surface", "height"])
-def test_png_covers_the_wider_map(tmp_path, layer):
+def test_png_opens_at_the_small_map(tmp_path, layer):
     with Image.open(render.Layers(str(tmp_path)).path(SEED, layer)) as img:
+        assert img.size == (250, 250)
+
+
+@pytest.mark.parametrize("blocks,pixels", [(1000, 250), (2000, 500), (6144, 1536)])
+def test_each_map_size_has_its_own_png(tmp_path, blocks, pixels):
+    with Image.open(render.Layers(str(tmp_path)).path(SEED, "surface", blocks)) as img:
+        assert img.size == (pixels, pixels)
+
+
+def test_other_map_sizes_rejected(tmp_path):
+    with pytest.raises(ValueError):
+        render.Layers(str(tmp_path)).path(SEED, "surface", 4000)
+
+
+def test_sizes_are_cached_separately(tmp_path):
+    layers = render.Layers(str(tmp_path))
+    assert layers.path(SEED, "weirdness", 1000) != layers.path(SEED, "weirdness", 2000)
+
+
+def test_big_map_png_size(tmp_path):
+    with Image.open(render.Layers(str(tmp_path)).path(SEED, "weirdness", 6144)) as img:
         assert img.size == (1536, 1536) and img.format == "PNG"
 
 
@@ -70,9 +91,9 @@ def test_surface_png_pixels_match_block_positions(tmp_path):
     from app import cubiomes
 
     colors = cubiomes.biome_colors()
-    with Image.open(render.Layers(str(tmp_path)).path(SEED, "surface")) as img:
-        for px, py in [(0, 0), (1535, 0), (0, 1535), (700, 200)]:
-            biome = cubiomes.surface_grid(SEED, 4, px - 768, py - 768, 1, 1)[0, 0]
+    with Image.open(render.Layers(str(tmp_path)).path(SEED, "surface", 2000)) as img:
+        for px, py in [(0, 0), (499, 0), (0, 499), (300, 200)]:
+            biome = cubiomes.surface_grid(SEED, 4, px - 250, py - 250, 1, 1)[0, 0]
             assert tuple(int(c) for c in colors[biome]) == img.getpixel((px, py))
 
 
@@ -80,7 +101,7 @@ def test_underground_png_is_half_size_and_clear_where_there_are_no_caves(tmp_pat
     from app import cubiomes
 
     colors = cubiomes.biome_colors()
-    with Image.open(render.Layers(str(tmp_path)).path(SEED, "underground")) as img:
+    with Image.open(render.Layers(str(tmp_path)).path(SEED, "underground", 6144)) as img:
         assert img.size == (768, 768) and img.mode == "RGBA"
         alphas = {pixel[3] for pixel in img.resize((64, 64), Image.NEAREST).getdata()}
         assert alphas == {0, 255}
@@ -93,9 +114,9 @@ def test_underground_png_is_half_size_and_clear_where_there_are_no_caves(tmp_pat
 def test_height_png_pixels_match_block_positions(tmp_path):
     from app import cubiomes
 
-    with Image.open(render.Layers(str(tmp_path)).path(SEED, "height")) as img:
-        for px, py in [(0, 0), (1535, 0), (700, 200)]:
-            height = cubiomes.height_grid(SEED, px - 768, py - 768, 1, 1, 1)
+    with Image.open(render.Layers(str(tmp_path)).path(SEED, "height", 2000)) as img:
+        for px, py in [(0, 0), (499, 0), (300, 200)]:
+            height = cubiomes.height_grid(SEED, px - 250, py - 250, 1, 1, 1)
             assert tuple(int(c) for c in render.height_to_rgb(height)[0, 0]) == img.getpixel((px, py))
 
 

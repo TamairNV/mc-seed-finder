@@ -9,9 +9,9 @@ from PIL import Image
 
 from app import cubiomes
 
-MAP_PIXELS = 1536
-MAP_ORIGIN_4 = -MAP_PIXELS // 2  # 1:4 coordinates, so the map covers 6144 blocks around 0,0
-MAP_EDGE_BLOCKS = MAP_PIXELS * 2
+MAP_SIZES = (1000, 2000, 6144)  # blocks across, centred on 0,0. Each pixel covers 4 blocks.
+MAP_DEFAULT = MAP_SIZES[0]
+MAP_EDGE_BLOCKS = MAP_SIZES[-1] // 2
 CAVE_STEP = 2  # the underground layer is half resolution, because each column takes several readings
 GREY_RANGE = 1.2  # fixed so brightness can be compared between seeds
 LAYERS = {"weirdness", "surface", "underground", "height"}
@@ -33,29 +33,31 @@ def height_to_rgb(grid: np.ndarray) -> np.ndarray:
     return np.rint(np.stack(channels, axis=-1)).astype(np.uint8)
 
 
-def _image(seed: int, layer: str) -> Image.Image:
+def _image(seed: int, layer: str, blocks: int) -> Image.Image:
+    pixels = blocks // 4
+    origin = -pixels // 2
     if layer == "weirdness":
-        grid = cubiomes.weirdness_grid(seed, MAP_ORIGIN_4, MAP_ORIGIN_4, MAP_PIXELS, MAP_PIXELS, 1)
+        grid = cubiomes.weirdness_grid(seed, origin, origin, pixels, pixels, 1)
         return Image.fromarray(weirdness_to_grey(grid), "L")
     if layer == "height":
-        grid = cubiomes.height_grid(seed, MAP_ORIGIN_4, MAP_ORIGIN_4, MAP_PIXELS, MAP_PIXELS, 1)
+        grid = cubiomes.height_grid(seed, origin, origin, pixels, pixels, 1)
         return Image.fromarray(height_to_rgb(grid), "RGB")
     if layer == "underground":
-        size = MAP_PIXELS // CAVE_STEP
-        grid = cubiomes.cave_grid(seed, MAP_ORIGIN_4, MAP_ORIGIN_4, size, size, CAVE_STEP)
+        size = pixels // CAVE_STEP
+        grid = cubiomes.cave_grid(seed, origin, origin, size, size, CAVE_STEP)
         alpha = np.where(grid >= 0, 255, 0).astype(np.uint8)[..., None]
         rgb = np.where(alpha > 0, cubiomes.biome_colors()[grid & 255], 0).astype(np.uint8)
         return Image.fromarray(np.concatenate([rgb, alpha], axis=-1), "RGBA")
-    grid = cubiomes.surface_grid(seed, 4, MAP_ORIGIN_4, MAP_ORIGIN_4, MAP_PIXELS, MAP_PIXELS)
+    grid = cubiomes.surface_grid(seed, 4, origin, origin, pixels, pixels)
     return Image.fromarray(cubiomes.biome_colors()[grid & 255], "RGB")
 
 
-def build_layer(target: str, seed: int, layer: str) -> None:
+def build_layer(target: str, seed: int, layer: str, blocks: int = MAP_DEFAULT) -> None:
     """Writes the PNG in full before it takes the final name. Runs in a worker process."""
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(target), suffix=".tmp")
     os.close(fd)
     try:
-        _image(seed, layer).save(tmp, format="PNG")
+        _image(seed, layer, blocks).save(tmp, format="PNG")
         os.replace(tmp, target)
     except BaseException:
         os.unlink(tmp)
@@ -73,12 +75,14 @@ class Layers:
         self._max_bytes = max_bytes
         self._run = run
 
-    def path(self, seed: int, layer: str) -> pathlib.Path:
+    def path(self, seed: int, layer: str, blocks: int = MAP_DEFAULT) -> pathlib.Path:
         if layer not in LAYERS:
             raise ValueError(f"unknown layer {layer!r}")
-        target = self._dir / f"{seed}_{layer}.png"
+        if blocks not in MAP_SIZES:
+            raise ValueError(f"unknown map size {blocks!r}")
+        target = self._dir / f"{seed}_{layer}_{blocks}.png"
         if not target.exists():
-            self._run(build_layer, str(target), seed, layer)
+            self._run(build_layer, str(target), seed, layer, blocks)
             self._trim(keep=target)
         return target
 

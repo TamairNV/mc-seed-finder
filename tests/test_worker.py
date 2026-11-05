@@ -30,19 +30,33 @@ def test_score_seed_returns_real_world_facts():
     assert scored.structures and all(len(s) == 3 for s in scored.structures)
 
 
-def test_score_grid_uses_the_same_height_as_the_map(monkeypatch):
-    from app import cubiomes, render, worker
+def test_score_grid_reads_the_surface_not_caves(monkeypatch):
+    from app import cubiomes, scoring, worker
 
-    real = cubiomes.biome_grid
-    heights = []
+    seen = {}
+    real = scoring.evaluate
 
-    def spy(seed, scale, x, z, w, h, y):
-        heights.append(y)
-        return real(seed, scale, x, z, w, h, y)
+    def spy(facts):
+        seen["biomes"] = facts.biomes
+        return real(facts)
 
-    monkeypatch.setattr(cubiomes, "biome_grid", spy)
-    worker.score_seed(SEED)
-    assert heights == [render.MAP_Y_4]
+    monkeypatch.setattr(worker, "evaluate", spy)
+    hilly = -7059255982915085877
+    worker.score_seed(hilly)
+    expected = worker._biome_names()[cubiomes.surface_grid(hilly, 16, -128, -128, 256, 256) & 255]
+    assert (seen["biomes"] == expected).all()
+    assert not set(seen["biomes"].ravel().tolist()) & scoring.CAVE_BIOMES
+
+
+def test_point_reads_surface_cave_and_height():
+    from app import worker
+
+    hilly = -7059255982915085877
+    spots = [worker.point(hilly, x, z) for x in range(-700, 700, 140) for z in range(-700, 700, 140)]
+    assert all(s["biome"] not in {"dripstone_caves", "lush_caves", "deep_dark"} for s in spots)
+    assert all(isinstance(s["height"], int) and -64 <= s["height"] <= 320 for s in spots)
+    assert {s["cave_biome"] for s in spots} - {None} <= {"dripstone_caves", "lush_caves", "deep_dark"}
+    assert any(s["cave_biome"] for s in spots) and any(s["cave_biome"] is None for s in spots)
 
 
 def test_structures_cover_the_wider_map():

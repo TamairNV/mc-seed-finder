@@ -12,9 +12,14 @@ from app import cubiomes
 MAP_PIXELS = 1536
 MAP_ORIGIN_4 = -MAP_PIXELS // 2  # 1:4 coordinates, so the map covers 6144 blocks around 0,0
 MAP_EDGE_BLOCKS = MAP_PIXELS * 2
-MAP_Y_4 = 15
+CAVE_STEP = 2  # the underground layer is half resolution, because each column takes several readings
 GREY_RANGE = 1.2  # fixed so brightness can be compared between seeds
-LAYERS = {"weirdness", "biomes"}
+LAYERS = {"weirdness", "surface", "underground", "height"}
+# Height in blocks to colour. Fixed so colours can be compared between seeds.
+HEIGHT_STOPS = (
+    (30, (12, 42, 110)), (62, (64, 134, 204)), (64, (86, 158, 84)), (100, (176, 190, 96)),
+    (140, (150, 108, 68)), (180, (150, 150, 150)), (220, (255, 255, 255)),
+)
 
 
 def weirdness_to_grey(grid: np.ndarray) -> np.ndarray:
@@ -22,11 +27,26 @@ def weirdness_to_grey(grid: np.ndarray) -> np.ndarray:
     return np.rint(scaled).astype(np.uint8)
 
 
+def height_to_rgb(grid: np.ndarray) -> np.ndarray:
+    heights = [stop[0] for stop in HEIGHT_STOPS]
+    channels = [np.interp(grid, heights, [stop[1][c] for stop in HEIGHT_STOPS]) for c in range(3)]
+    return np.rint(np.stack(channels, axis=-1)).astype(np.uint8)
+
+
 def _image(seed: int, layer: str) -> Image.Image:
     if layer == "weirdness":
         grid = cubiomes.weirdness_grid(seed, MAP_ORIGIN_4, MAP_ORIGIN_4, MAP_PIXELS, MAP_PIXELS, 1)
         return Image.fromarray(weirdness_to_grey(grid), "L")
-    grid = cubiomes.biome_grid(seed, 4, MAP_ORIGIN_4, MAP_ORIGIN_4, MAP_PIXELS, MAP_PIXELS, MAP_Y_4)
+    if layer == "height":
+        grid = cubiomes.height_grid(seed, MAP_ORIGIN_4, MAP_ORIGIN_4, MAP_PIXELS, MAP_PIXELS, 1)
+        return Image.fromarray(height_to_rgb(grid), "RGB")
+    if layer == "underground":
+        size = MAP_PIXELS // CAVE_STEP
+        grid = cubiomes.cave_grid(seed, MAP_ORIGIN_4, MAP_ORIGIN_4, size, size, CAVE_STEP)
+        alpha = np.where(grid >= 0, 255, 0).astype(np.uint8)[..., None]
+        rgb = np.where(alpha > 0, cubiomes.biome_colors()[grid & 255], 0).astype(np.uint8)
+        return Image.fromarray(np.concatenate([rgb, alpha], axis=-1), "RGBA")
+    grid = cubiomes.surface_grid(seed, 4, MAP_ORIGIN_4, MAP_ORIGIN_4, MAP_PIXELS, MAP_PIXELS)
     return Image.fromarray(cubiomes.biome_colors()[grid & 255], "RGB")
 
 

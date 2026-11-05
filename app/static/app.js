@@ -12,6 +12,7 @@ const COMPONENTS = {
   spawn_biome: ["Spawn biome", 20], variety: ["Variety", 15], rare_biomes: ["Rare biomes", 25],
   structures: ["Structures", 30], terrain: ["Terrain", 10],
 };
+const LAYERS = ["weirdness", "surface", "underground", "height"];
 const hidden = new Set(["Trial_Chambers", "Outpost", "Trail_Ruins"]);  // common enough to crowd the map
 let selected = null;
 let hoverTimer = null;
@@ -191,20 +192,44 @@ function selectSeed(row) {
   for (const tr of $("seed-list").children) tr.classList.toggle("selected", tr.dataset.seed === row.seed);
   if (!changed) return;
   resetView();
-  let waiting = 2;
-  $("map-loading").hidden = false;
-  for (const layer of ["weirdness", "biomes"]) {
+  syncLayers();
+}
+
+// Layers that take time to build are only requested once something on the page needs them.
+function wantedLayers() {
+  const wanted = ["weirdness", $("biome-mode").value];
+  if (Number($("height-opacity").value) > 0) wanted.push("height");
+  return wanted;
+}
+
+function requestLayer(layer, seed) {
+  const img = $(`layer-${layer}`);
+  img.dataset.seed = seed;
+  delete img.dataset.settled;
+  img.onload = () => { img.dataset.settled = "loaded"; syncLayers(); };
+  img.onerror = () => {
+    img.dataset.settled = "failed";
+    syncLayers();
+    showError(new Error(`Couldn't load the ${layer} map.`));
+  };
+  img.src = `/api/seeds/${seed}/layers/${layer}.png`;
+}
+
+function syncLayers() {
+  if (!selected) return;
+  const seed = selected.seed;
+  const wanted = wantedLayers();
+  let waiting = false;
+  for (const layer of LAYERS) {
     const img = $(`layer-${layer}`);
-    img.hidden = true;  // the old seed's map must not sit under the new seed's markers
-    const finished = () => {
-      if (selected?.seed !== row.seed) return;
-      waiting -= 1;
-      $("map-loading").hidden = waiting === 0;
-    };
-    img.onload = () => { img.hidden = false; finished(); };
-    img.onerror = () => { finished(); showError(new Error(`Couldn't load the ${layer} map.`)); };
-    img.src = `/api/seeds/${row.seed}/layers/${layer}.png`;
+    const want = wanted.includes(layer);
+    if (want && img.dataset.seed !== seed) requestLayer(layer, seed);
+    const current = img.dataset.seed === seed;
+    if (want && current && !img.dataset.settled) waiting = true;
+    // an old seed's map must not sit under the new seed's markers
+    img.hidden = !(want && current && img.dataset.settled === "loaded");
   }
+  $("map-loading").hidden = !waiting;
 }
 
 const refreshList = guarded(async () => {
@@ -290,7 +315,8 @@ function onHover(event) {
     try {
       const point = await api(`/api/seeds/${seed}/point?x=${x}&z=${z}`);
       if (selected?.seed === seed) {
-        $("hover").textContent = `x ${x}, z ${z} · ${pretty(point.biome)} · weirdness ${point.weirdness.toFixed(3)} · ${point.terrain}`;
+        const caves = point.cave_biome ? ` · caves below: ${pretty(point.cave_biome)}` : "";
+        $("hover").textContent = `x ${x}, z ${z} · ${pretty(point.biome)}${caves} · height ~${point.height} · weirdness ${point.weirdness.toFixed(3)} · ${point.terrain}`;
       }
     } catch { /* a hover readout isn't worth an error message */ }
   }, 150);
@@ -372,7 +398,8 @@ function buildToggles() {
 }
 
 function applyOpacity() {
-  $("layer-biomes").style.opacity = $("biome-opacity").value;
+  for (const layer of ["surface", "underground"]) $(`layer-${layer}`).style.opacity = $("biome-opacity").value;
+  $("layer-height").style.opacity = $("height-opacity").value;
 }
 
 $("seed-form").onsubmit = (e) => {
@@ -389,6 +416,8 @@ $("stop-btn").onclick = guarded(() => api("/api/search/stop", { method: "POST" }
 $("sort").onchange = refreshList;
 $("shortlist-filter").onchange = refreshList;
 $("biome-opacity").oninput = applyOpacity;
+$("height-opacity").oninput = () => { applyOpacity(); syncLayers(); };
+$("biome-mode").onchange = syncLayers;
 bindMap();
 
 buildToggles();

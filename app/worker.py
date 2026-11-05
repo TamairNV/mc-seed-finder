@@ -14,7 +14,6 @@ from app.scoring import Result, WorldFacts, evaluate, terrain_hint
 
 GRID_CELLS = 256
 GRID_ORIGIN_16 = -GRID_CELLS // 2
-GRID_Y_4 = render.MAP_Y_4  # cubiomes keeps vertical units at 1:4 at every horizontal scale
 CELL_BLOCKS = 16
 
 
@@ -43,7 +42,7 @@ def _biome_names() -> np.ndarray:
 
 def score_seed(seed: int) -> Scored:
     x, z, biome = cubiomes.spawn(seed)
-    biomes = cubiomes.biome_grid(seed, CELL_BLOCKS, GRID_ORIGIN_16, GRID_ORIGIN_16, GRID_CELLS, GRID_CELLS, GRID_Y_4)
+    biomes = cubiomes.surface_grid(seed, CELL_BLOCKS, GRID_ORIGIN_16, GRID_ORIGIN_16, GRID_CELLS, GRID_CELLS)
     weirdness = cubiomes.weirdness_grid(seed, GRID_ORIGIN_16 * 4, GRID_ORIGIN_16 * 4, GRID_CELLS, GRID_CELLS, 4)
     structures = [(s.kind, s.x, s.z) for s in cubiomes.structures(seed, render.MAP_EDGE_BLOCKS)]
     spawn_biome = cubiomes.biome_name(biome)
@@ -56,11 +55,14 @@ def score_seed(seed: int) -> Scored:
 
 
 def point(seed: int, x: int, z: int) -> dict:
-    """The biome and weirdness at one block position, for the map's hover readout."""
+    """What's at one block position, for the map's hover readout."""
     x4, z4 = x >> 2, z >> 2
     weirdness = cubiomes.weirdness_at(seed, x4, z4)
+    cave = int(cubiomes.cave_grid(seed, x4, z4, 1, 1, 1)[0, 0])
     return {
-        "biome": cubiomes.biome_name(cubiomes.biome_at(seed, 4, x4, z4, render.MAP_Y_4)),
+        "biome": cubiomes.biome_name(int(cubiomes.surface_grid(seed, 4, x4, z4, 1, 1)[0, 0])),
+        "cave_biome": cubiomes.biome_name(cave) if cave >= 0 else None,
+        "height": round(float(cubiomes.height_grid(seed, x4, z4, 1, 1, 1)[0, 0])),
         "weirdness": weirdness,
         "terrain": terrain_hint(weirdness),
     }

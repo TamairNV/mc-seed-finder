@@ -19,6 +19,11 @@ _lib.sl_spawn.argtypes = [c.c_int64, _int_p, _int_p, _int_p]
 _lib.sl_spawn.restype = None
 _lib.sl_biome_grid.argtypes = [c.c_int64, *[c.c_int] * 6, _int_p]
 _lib.sl_biome_at.argtypes = [c.c_int64, *[c.c_int] * 4]
+_lib.sl_surface_grid.argtypes = [c.c_int64, *[c.c_int] * 5, _int_p]
+_lib.sl_height_grid.argtypes = [c.c_int64, *[c.c_int] * 5, c.POINTER(c.c_float)]
+_lib.sl_height_grid.restype = None
+_lib.sl_cave_grid.argtypes = [c.c_int64, *[c.c_int] * 5, _int_p]
+_lib.sl_cave_grid.restype = None
 _lib.sl_weirdness_grid.argtypes = [c.c_int64, *[c.c_int] * 5, c.POINTER(c.c_double)]
 _lib.sl_weirdness_grid.restype = None
 _lib.sl_weirdness_at.argtypes = [c.c_int64, c.c_int, c.c_int]
@@ -50,6 +55,29 @@ def biome_grid(seed: int, scale: int, x: int, z: int, w: int, h: int, y: int) ->
     err = _lib.sl_biome_grid(seed, scale, x, z, w, h, y, out.ctypes.data_as(_int_p))
     if err:
         raise RuntimeError(f"biome generation failed with code {err}")
+    return out
+
+
+def surface_grid(seed: int, scale: int, x: int, z: int, w: int, h: int) -> np.ndarray:
+    """Biomes on top of the land, never a cave biome. scale is 4 or 16."""
+    out = np.empty((h, w), dtype=np.int32)
+    err = _lib.sl_surface_grid(seed, scale, x, z, w, h, out.ctypes.data_as(_int_p))
+    if err:
+        raise RuntimeError(f"biome generation failed with code {err}")
+    return out
+
+
+def height_grid(seed: int, x4: int, z4: int, w: int, h: int, step: int) -> np.ndarray:
+    """Approximate terrain height in blocks, sampled every `step` cells of 1:4 coordinates."""
+    out = np.empty((h, w), dtype=np.float32)
+    _lib.sl_height_grid(seed, x4, z4, w, h, step, out.ctypes.data_as(c.POINTER(c.c_float)))
+    return out
+
+
+def cave_grid(seed: int, x4: int, z4: int, w: int, h: int, step: int) -> np.ndarray:
+    """The deepest cave biome under each column, or -1 where there is none."""
+    out = np.empty((h, w), dtype=np.int32)
+    _lib.sl_cave_grid(seed, x4, z4, w, h, step, out.ctypes.data_as(_int_p))
     return out
 
 

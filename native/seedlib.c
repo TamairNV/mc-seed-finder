@@ -11,6 +11,11 @@
 
 #define MC MC_NEWEST
 #define SEA_LEVEL_4 15
+#define SURFACE_TRIES 16
+/* Cave biomes can start anywhere from the bottom of the world up to about sea level. */
+#define CAVE_LOW_4 (-12)
+#define CAVE_HIGH_4 16
+#define CAVE_STEP_4 4
 
 typedef struct { int kind, x, z; } SlStructure;
 
@@ -36,6 +41,29 @@ static void seeded_weirdness(BiomeNoise *bn, int64_t seed)
     setClimateParaSeed(bn, (uint64_t)seed, 0, NP_WEIRDNESS, -1);
 }
 
+static int is_cave(int biome)
+{
+    return biome == dripstone_caves || biome == lush_caves || biome == deep_dark;
+}
+
+/* The biome on top of the land. The height is approximate and can land just under the
+ * ground, so step up until the reading is clear of any cave biome. */
+static int surface_biome(const Generator *g, int x4, int z4)
+{
+    float height;
+    mapApproxHeight(&height, NULL, g, NULL, x4, z4, 1, 1);
+    int y4 = (int)height >> 2;
+    if (y4 < SEA_LEVEL_4)
+        y4 = SEA_LEVEL_4;
+    int biome = none;
+    for (int i = 0; i < SURFACE_TRIES; i++) {
+        biome = sampleBiomeNoise(&g->bn, NULL, x4, y4 + i, z4, NULL, 0);
+        if (!is_cave(biome))
+            break;
+    }
+    return biome;
+}
+
 void sl_spawn(int64_t seed, int *x, int *z, int *biome)
 {
     Generator g;
@@ -43,11 +71,7 @@ void sl_spawn(int64_t seed, int *x, int *z, int *biome)
     Pos p = estimateSpawn(&g, NULL);
     *x = p.x;
     *z = p.z;
-    /* Read at the surface: a fixed height is underground on hills and finds cave biomes. */
-    float height;
-    mapApproxHeight(&height, NULL, &g, NULL, p.x >> 2, p.z >> 2, 1, 1);
-    int y4 = (int)height >> 2;
-    *biome = getBiomeAt(&g, 4, p.x >> 2, y4 < SEA_LEVEL_4 ? SEA_LEVEL_4 : y4, p.z >> 2);
+    *biome = surface_biome(&g, p.x >> 2, p.z >> 2);
 }
 
 int sl_biome_grid(int64_t seed, int scale, int x, int z, int w, int h, int y, int *out)
@@ -63,6 +87,51 @@ int sl_biome_grid(int64_t seed, int scale, int x, int z, int w, int h, int y, in
         memcpy(out, cache, sizeof(int) * (size_t)w * (size_t)h);
     free(cache);
     return err;
+}
+
+/* A reading at sea level only differs from the surface where it finds a cave biome, so
+ * only those cells pay for the slower surface lookup. scale is 4 or 16. */
+int sl_surface_grid(int64_t seed, int scale, int x, int z, int w, int h, int *out)
+{
+    int err = sl_biome_grid(seed, scale, x, z, w, h, SEA_LEVEL_4, out);
+    if (err)
+        return err;
+    Generator g;
+    seeded(&g, seed);
+    int per_cell = scale / 4;
+    for (int j = 0; j < h; j++)
+        for (int i = 0; i < w; i++)
+            if (is_cave(out[j * w + i]))
+                out[j * w + i] = surface_biome(&g, (x + i) * per_cell + per_cell / 2,
+                                               (z + j) * per_cell + per_cell / 2);
+    return 0;
+}
+
+void sl_height_grid(int64_t seed, int x4, int z4, int w, int h, int step, float *out)
+{
+    Generator g;
+    seeded(&g, seed);
+    for (int j = 0; j < h; j++)
+        for (int i = 0; i < w; i++)
+            mapApproxHeight(&out[j * w + i], NULL, &g, NULL, x4 + i * step, z4 + j * step, 1, 1);
+}
+
+/* The deepest cave biome under each column, or -1 if there is none. */
+void sl_cave_grid(int64_t seed, int x4, int z4, int w, int h, int step, int *out)
+{
+    Generator g;
+    seeded(&g, seed);
+    for (int j = 0; j < h; j++) {
+        for (int i = 0; i < w; i++) {
+            int found = -1;
+            for (int y4 = CAVE_LOW_4; y4 <= CAVE_HIGH_4 && found < 0; y4 += CAVE_STEP_4) {
+                int biome = sampleBiomeNoise(&g.bn, NULL, x4 + i * step, y4, z4 + j * step, NULL, 0);
+                if (is_cave(biome))
+                    found = biome;
+            }
+            out[j * w + i] = found;
+        }
+    }
 }
 
 int sl_biome_at(int64_t seed, int scale, int x, int z, int y)

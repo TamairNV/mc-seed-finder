@@ -9,7 +9,7 @@ from app import render
 SEED = 3874681947099440070
 
 
-@pytest.mark.parametrize("layer", ["weirdness", "biomes"])
+@pytest.mark.parametrize("layer", ["weirdness", "surface", "height"])
 def test_png_covers_the_wider_map(tmp_path, layer):
     with Image.open(render.Layers(str(tmp_path)).path(SEED, layer)) as img:
         assert img.size == (1536, 1536) and img.format == "PNG"
@@ -66,11 +66,41 @@ def test_runner_is_used_for_building(tmp_path):
     assert calls == [render.build_layer]
 
 
-def test_biome_png_pixels_match_block_positions(tmp_path):
+def test_surface_png_pixels_match_block_positions(tmp_path):
     from app import cubiomes
 
     colors = cubiomes.biome_colors()
-    with Image.open(render.Layers(str(tmp_path)).path(SEED, "biomes")) as img:
+    with Image.open(render.Layers(str(tmp_path)).path(SEED, "surface")) as img:
         for px, py in [(0, 0), (1535, 0), (0, 1535), (700, 200)]:
-            biome = cubiomes.biome_at(SEED, 4, px - 768, py - 768, 15)
+            biome = cubiomes.surface_grid(SEED, 4, px - 768, py - 768, 1, 1)[0, 0]
             assert tuple(int(c) for c in colors[biome]) == img.getpixel((px, py))
+
+
+def test_underground_png_is_half_size_and_clear_where_there_are_no_caves(tmp_path):
+    from app import cubiomes
+
+    colors = cubiomes.biome_colors()
+    with Image.open(render.Layers(str(tmp_path)).path(SEED, "underground")) as img:
+        assert img.size == (768, 768) and img.mode == "RGBA"
+        alphas = {pixel[3] for pixel in img.resize((64, 64), Image.NEAREST).getdata()}
+        assert alphas == {0, 255}
+        for px, py in [(10, 10), (400, 120), (700, 650)]:
+            biome = cubiomes.cave_grid(SEED, -768 + px * 2, -768 + py * 2, 1, 1, 1)[0, 0]
+            expected = (0, 0, 0, 0) if biome < 0 else (*(int(c) for c in colors[biome]), 255)
+            assert img.getpixel((px, py)) == expected
+
+
+def test_height_png_pixels_match_block_positions(tmp_path):
+    from app import cubiomes
+
+    with Image.open(render.Layers(str(tmp_path)).path(SEED, "height")) as img:
+        for px, py in [(0, 0), (1535, 0), (700, 200)]:
+            height = cubiomes.height_grid(SEED, px - 768, py - 768, 1, 1, 1)
+            assert tuple(int(c) for c in render.height_to_rgb(height)[0, 0]) == img.getpixel((px, py))
+
+
+def test_height_colours_are_fixed_so_seeds_can_be_compared():
+    low, sea, land, peak = render.height_to_rgb(np.array([[-20.0, 62.0, 70.0, 400.0]]))[0]
+    assert low[2] > low[0] and sea[2] > sea[0], "water should be blue"
+    assert land[1] > land[2], "low land should be green"
+    assert tuple(peak) == (255, 255, 255)

@@ -158,6 +158,14 @@ Multi-user accounts, Nether and End maps, a pan-and-zoom infinite map, editing w
 - **Shortlist:** stored on the server. Shortlisted seeds are never trimmed by a search.
 - **Help panel and terrain hints** explain how to read the noise.
 
+## Surface, underground and height layers (2026-11-05, requested by Tamair)
+
+- **Problem:** reading biomes at y=60 is underground wherever the land is higher, so cave biomes hid the surface on the map and undercounted surface biomes in the score. Three top seeds showed 3.7% to 19.9% cave cells.
+- **Surface biomes** now drive the map, the hover readout and the score. A reading at y=60 differed from the surface only in cave cells, so only those cells do the slower height lookup.
+- **Underground layer:** half resolution, showing the deepest cave biome in each column. Built when first selected.
+- **Height layer:** cubiomes' approximate height on a fixed colour scale, off by default and built when first switched on.
+- The `biomes` layer is replaced by `surface`, so images cached from y=60 are never served again.
+
 ## Future scale
 
 Deeper searches are a likely later expansion. In order: run cheap spawn and structure checks before biome generation, add a coarse biome pass before the detailed one, then raise the worker limit. Consider moving the search loop to Rust or C only if profiling shows the Python around cubiomes is the bottleneck. In the feasibility test, cubiomes biome generation took about 178 of 190 ms per seed, and Rust would not speed that up without rewriting the generator. Keep `app/scoring.py` a pure function so this stays possible.

@@ -21,7 +21,7 @@ def test_page_has_controls(tmp_path):
     assert r.status_code == 200
     for element in ["seed-input", "random-btn", "search-btn", "search-count", "stop-btn", "map",
                     "biome-opacity", "seed-list", "breakdown", "structure-toggles", "zoom-in", "zoom-out", "zoom-reset",
-                    "help", "shortlist-filter"]:
+                    "help", "shortlist-filter", "biome-mode", "height-opacity", "layer-surface", "layer-underground", "layer-height"]:
         assert f'id="{element}"' in r.text
 
 

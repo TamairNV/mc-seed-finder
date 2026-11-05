@@ -53,3 +53,55 @@ def test_spawn_biome_is_read_at_the_surface_not_underground():
 def test_spawn_biome_is_never_a_cave_across_many_seeds():
     names = {cubiomes.biome_name(cubiomes.spawn(seed)[2]) for seed in range(300)}
     assert not names & CAVE_BIOMES
+
+
+HILLY_SEED = -7059255982915085877  # about a fifth of its central map is a cave biome at y=60
+CAVES = {"dripstone_caves", "lush_caves", "deep_dark"}
+
+
+def names(grid):
+    return {cubiomes.biome_name(int(b)) for b in set(grid.ravel().tolist())}
+
+
+def test_fixed_height_grid_really_does_show_caves_on_this_seed():
+    assert names(cubiomes.biome_grid(HILLY_SEED, 4, -192, -192, 384, 384, 15)) & CAVES
+
+
+def test_surface_grid_has_no_cave_biomes_at_either_scale():
+    assert not names(cubiomes.surface_grid(HILLY_SEED, 4, -192, -192, 384, 384)) & CAVES
+    assert not names(cubiomes.surface_grid(HILLY_SEED, 16, -128, -128, 256, 256)) & CAVES
+
+
+def test_surface_grid_agrees_with_biomes_read_at_the_terrain_height():
+    grid = cubiomes.surface_grid(HILLY_SEED, 4, -192, -192, 96, 96)
+    heights = cubiomes.height_grid(HILLY_SEED, -192, -192, 96, 96, 1)
+    same = sum(
+        grid[j, i] == cubiomes.biome_at(HILLY_SEED, 4, -192 + i, -192 + j, max(15, int(heights[j, i]) >> 2))
+        for j in range(0, 96, 4) for i in range(0, 96, 4)
+    )
+    assert same >= 0.99 * 24 * 24
+
+
+def test_surface_grid_axes_match_a_single_cell():
+    grid = cubiomes.surface_grid(HILLY_SEED, 4, -192, -192, 64, 32)
+    assert grid.shape == (32, 64)
+    assert grid[7, 50] == cubiomes.surface_grid(HILLY_SEED, 4, -192 + 50, -192 + 7, 1, 1)[0, 0]
+
+
+def test_height_grid_axes_step_and_range():
+    grid = cubiomes.height_grid(HILLY_SEED, -192, -192, 64, 32, 2)
+    assert grid.shape == (32, 64)
+    assert grid[7, 50] == cubiomes.height_grid(HILLY_SEED, -192 + 100, -192 + 14, 1, 1, 1)[0, 0]
+    assert -64 <= grid.min() < grid.max() <= 320
+
+
+def test_cave_grid_holds_only_cave_biomes_or_none():
+    grid = cubiomes.cave_grid(HILLY_SEED, -192, -192, 96, 96, 2)
+    found = grid[grid >= 0]
+    assert found.size and (grid < 0).any() and names(found) <= CAVES
+
+
+def test_cave_grid_axes_and_step_match_a_single_cell():
+    grid = cubiomes.cave_grid(HILLY_SEED, -192, -192, 64, 32, 2)
+    assert grid.shape == (32, 64)
+    assert grid[7, 50] == cubiomes.cave_grid(HILLY_SEED, -192 + 100, -192 + 14, 1, 1, 1)[0, 0]

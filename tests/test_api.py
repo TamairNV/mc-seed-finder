@@ -77,7 +77,7 @@ def test_rejected_seed_keeps_map_and_breakdown(tmp_path):
     client = build(tmp_path, scorer=taiga_scorer)
     row = client.post("/api/seeds", json={"seed": "5"}).json()
     assert row["rejected_reason"] and row["breakdown"]
-    for layer in ("weirdness", "biomes"):
+    for layer in ("weirdness", "surface", "underground", "height"):
         r = client.get(f"/api/seeds/5/layers/{layer}.png")
         assert r.status_code == 200 and r.headers["content-type"] == "image/png"
 
@@ -90,7 +90,7 @@ def test_invalid_seed_is_400_and_not_saved(client):
 
 def test_seed_above_64_bits_in_url_is_400(client):
     assert client.get("/api/seeds/9223372036854775808").status_code == 400
-    assert client.get("/api/seeds/9223372036854775808/layers/biomes.png").status_code == 400
+    assert client.get("/api/seeds/9223372036854775808/layers/surface.png").status_code == 400
 
 
 def test_text_in_seed_url_is_400(client):
@@ -107,7 +107,7 @@ def test_layers_unknown_layer_is_404(client):
 
 
 def test_layers_for_unsaved_seed_is_404(client):
-    assert client.get("/api/seeds/5/layers/biomes.png").status_code == 404
+    assert client.get("/api/seeds/5/layers/surface.png").status_code == 404
 
 
 def test_worker_crash_returns_500_with_message(tmp_path):
@@ -147,7 +147,7 @@ class DenyAll:
         raise Denied(403, "Missing Cloudflare Access token")
 
 
-@pytest.mark.parametrize("path", ["/", "/api/seeds", "/api/search", "/api/seeds/5/layers/biomes.png"])
+@pytest.mark.parametrize("path", ["/", "/api/seeds", "/api/search", "/api/seeds/5/layers/surface.png"])
 def test_requests_without_token_are_403(tmp_path, path):
     assert build(tmp_path, verifier=DenyAll()).get(path).status_code == 403
 
@@ -205,3 +205,9 @@ def test_shortlist_unsaved_seed_is_404(client):
 
 def test_shortlist_bad_seed_is_400(client):
     assert client.put("/api/seeds/hello/shortlist", json={"shortlisted": True}).status_code == 400
+
+
+def test_old_biomes_layer_name_is_gone(client):
+    # its cached images read the map at y=60, so they must not be served any more
+    client.post("/api/seeds", json={"seed": "5"})
+    assert client.get("/api/seeds/5/layers/biomes.png").status_code == 404

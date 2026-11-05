@@ -18,6 +18,7 @@ import jwt
 log = logging.getLogger("tnv_access")
 FRESH_SECONDS = 60
 STALE_SECONDS = 600
+NOT_LISTED_SECONDS = 15  # short, so someone just added gets in quickly
 
 
 class AccessDenied(Exception):
@@ -46,6 +47,8 @@ class AccessGuard:
         self.site, self.team, self.aud, self.lowest = site, team_domain, aud, lowest_role
         self.panel_url, self.fetch, self.clock = panel_url.rstrip("/"), fetch, clock
         self._cache: dict[str, tuple[str, list[str], float]] = {}
+        self._not_listed: dict[str, float] = {}
+        self._roles: list[str] | None = None  # the site's list as last reported, fresher than ACCESS_LOWEST_ROLE
         self._lock = threading.Lock()
         if key_lookup is None:
             client = jwt.PyJWKClient(f"https://{team_domain}/cdn-cgi/access/certs", cache_keys=True)
@@ -69,25 +72,36 @@ class AccessGuard:
         now = self.clock()
         with self._lock:
             cached = self._cache.get(email)
+            refused = self._not_listed.get(email)
+        if refused is not None and now - refused < NOT_LISTED_SECONDS:
+            raise AccessDenied(403, "You don't have access to this site.")
         if cached and now - cached[2] < FRESH_SECONDS:
             return cached[0], cached[1]
         url = f"{self.panel_url}/roles/{urllib.parse.quote(self.site, safe='')}/{urllib.parse.quote(email, safe='')}"
         try:
             status, data = self.fetch(url)
-        except OSError:
-            status, data = 0, {}
+            if status == 200:
+                role, roles = data["role"], list(data["roles"])
+                if role not in roles:
+                    raise ValueError("role isn't in the role list")
+        except Exception:  # any trouble reaching or reading the panel counts as the panel being away
+            status = 0
         if status == 200:
             with self._lock:
-                self._cache[email] = (data["role"], data["roles"], now)
-            return data["role"], data["roles"]
+                self._cache[email] = (role, roles, now)
+                self._not_listed.pop(email, None)
+                self._roles = roles
+            return role, roles
         if status == 404:  # the panel answered: they aren't on this site
             with self._lock:
                 self._cache.pop(email, None)
+                self._not_listed[email] = now
             raise AccessDenied(403, "You don't have access to this site.")
         log.warning("access panel unavailable (status %s)", status)
         if cached and now - cached[2] <= STALE_SECONDS:
             return cached[0], cached[1]
-        return self.lowest, [self.lowest]  # never higher than the lowest role while the panel is away
+        lowest = self._roles[0] if self._roles else self.lowest
+        return lowest, [lowest]  # never higher than the lowest role while the panel is away
 
     def check(self, token, required: str | None = None) -> AccessUser:
         email = self._email(token)

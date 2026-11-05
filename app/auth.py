@@ -2,6 +2,8 @@
 
 import jwt
 
+from app.tnv_access import AccessDenied, AccessGuard
+
 
 class Denied(Exception):
     def __init__(self, status: int, message: str):
@@ -34,3 +36,20 @@ class AccessVerifier:
                               issuer=f"https://{self._team}", options={"require": ["exp", "aud", "iss"]})
         except jwt.exceptions.PyJWTError as e:
             raise Denied(403, "Invalid Cloudflare Access token") from e
+
+
+class PanelVerifier:
+    """Checks the token, then asks the access panel whether this person is on the site."""
+
+    def __init__(self, tokens: AccessVerifier, guard: AccessGuard | None):
+        self._tokens = tokens
+        self._guard = guard
+
+    def verify(self, token: str | None) -> dict:
+        claims = self._tokens.verify(token)
+        if self._guard is None:
+            raise Denied(503, "The access panel is not configured")
+        try:
+            return {**claims, "role": self._guard.check(token).role}
+        except AccessDenied as e:
+            raise Denied(e.status, str(e)) from e

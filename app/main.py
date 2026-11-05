@@ -13,7 +13,8 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from app import seeds, worker
-from app.auth import AccessVerifier, Denied
+from app.auth import AccessVerifier, Denied, PanelVerifier
+from app.tnv_access import AccessGuard
 from app.render import MAP_EDGE_BLOCKS, Layers
 from app.search import AlreadyRunning, SearchManager, random_seed
 from app.store import Store
@@ -151,5 +152,7 @@ def default_app() -> FastAPI:
     pool = worker.Pool()
     store = Store(str(data / "seeds.db"))
     layers = Layers(str(data / "cache"), run=pool.run)
-    verifier = AccessVerifier(os.environ.get("CF_TEAM_DOMAIN"), os.environ.get("CF_AUD"))
+    team, aud, site = os.environ.get("CF_TEAM_DOMAIN"), os.environ.get("CF_AUD"), os.environ.get("ACCESS_SITE")
+    guard = AccessGuard(site, team, aud, os.environ.get("ACCESS_LOWEST_ROLE", "user")) if team and aud and site else None
+    verifier = PanelVerifier(AccessVerifier(team, aud), guard)
     return create_app(pool, store, layers, SearchManager(pool, store), verifier)

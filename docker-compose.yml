@@ -13,6 +13,7 @@ services:
       DATA_DIR: /app/data
     ports:
       - "127.0.0.1:8103:8000"
+    networks: [default, access-net]
     volumes:
       - ./data:/app/data
     cpus: 4
@@ -30,3 +31,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+networks:
+  access-net:
+    external: true

@@ -5,7 +5,7 @@ import os
 import pathlib
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -45,6 +45,15 @@ class SearchIn(BaseModel):
     count: int = Field(ge=1, le=MAX_SEARCH)
 
 
+def is_admin(request: Request) -> bool:
+    return request.state.access.get("role") == "admin"
+
+
+def require_admin(request: Request) -> None:
+    if not is_admin(request):
+        raise HTTPException(403, "Only admins can start or stop searches")
+
+
 def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifier,
                scorer=worker.score_seed) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -57,7 +66,7 @@ def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifi
         if request.scope["path"] not in PUBLIC_PATHS:  # request.url is built from the Host header
             token = request.headers.get("cf-access-jwt-assertion")
             try:
-                await run_in_threadpool(verifier.verify, token)
+                request.state.access = await run_in_threadpool(verifier.verify, token)
             except Denied as e:
                 return JSONResponse({"detail": e.message}, status_code=e.status)
         return await call_next(request)
@@ -76,7 +85,7 @@ def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifi
 
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request):
-        return templates.TemplateResponse(request, "index.html", {"v": version})
+        return templates.TemplateResponse(request, "index.html", {"v": version, "is_admin": is_admin(request)})
 
     @app.post("/api/seeds")
     def add_seed(body: SeedIn):
@@ -126,7 +135,7 @@ def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifi
         number, _ = saved_seed(seed)
         return pool.run(worker.point, number, x, z)
 
-    @app.post("/api/search", status_code=202)
+    @app.post("/api/search", status_code=202, dependencies=[Depends(require_admin)])
     def start_search(body: SearchIn):
         try:
             search.start(body.count)
@@ -138,7 +147,7 @@ def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifi
     def search_status():
         return search.status()
 
-    @app.post("/api/search/stop")
+    @app.post("/api/search/stop", dependencies=[Depends(require_admin)])
     def stop_search():
         search.stop()
         return search.status()

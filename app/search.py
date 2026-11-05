@@ -17,7 +17,7 @@ class AlreadyRunning(RuntimeError):
     pass
 
 
-def _random_seed() -> int:
+def random_seed() -> int:
     value = secrets.randbits(64)
     return value - 2**64 if value >= 2**63 else value
 
@@ -92,7 +92,7 @@ class SearchManager:
                     return
                 self._claimed += 1
             try:
-                scored = self._pool.run(self._scorer, _random_seed())
+                scored = self._pool.run(self._scorer, random_seed())
             except Exception as e:
                 log.warning("search seed failed: %s", e)
                 with self._lock:

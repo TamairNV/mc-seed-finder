@@ -18,13 +18,19 @@ def _java_hash(text: str) -> int:
     return h - 2**32 if h >= 2**31 else h
 
 
+def parse_number(text: str) -> int:
+    if not re.fullmatch(r"-?\d+", text):
+        raise InvalidSeed("Seeds in links must be numbers")
+    value = int(text)
+    if not _MIN <= value <= _MAX:
+        raise InvalidSeed("Number seeds must fit a signed 64-bit integer")
+    return value
+
+
 def parse(text: str) -> int:
     text = text.strip()
     if not text:
         raise InvalidSeed("Enter a seed")
     if re.fullmatch(r"-?\d+", text):
-        value = int(text)
-        if not _MIN <= value <= _MAX:
-            raise InvalidSeed("Number seeds must fit a signed 64-bit integer")
-        return value
+        return parse_number(text)
     return _java_hash(text)

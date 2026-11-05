@@ -55,6 +55,15 @@ def score_seed(seed: int) -> Scored:
     return Scored(seed, evaluate(facts), (x, z), spawn_biome, structures)
 
 
+def point(seed: int, x: int, z: int) -> dict:
+    """The biome and weirdness at one block position, for the map's hover readout."""
+    x4, z4 = x >> 2, z >> 2
+    return {
+        "biome": cubiomes.biome_name(cubiomes.biome_at(seed, 4, x4, z4, 15)),
+        "weirdness": cubiomes.weirdness_at(seed, x4, z4),
+    }
+
+
 class Pool:
     def __init__(self, workers: int = 4):
         self.workers = workers

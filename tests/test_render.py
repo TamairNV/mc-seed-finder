@@ -64,3 +64,13 @@ def test_runner_is_used_for_building(tmp_path):
 
     render.Layers(str(tmp_path), run=run).path(SEED, "weirdness")
     assert calls == [render.build_layer]
+
+
+def test_biome_png_pixels_match_block_positions(tmp_path):
+    from app import cubiomes
+
+    colors = cubiomes.biome_colors()
+    with Image.open(render.Layers(str(tmp_path)).path(SEED, "biomes")) as img:
+        for px, py in [(0, 0), (1023, 0), (0, 1023), (700, 200)]:
+            biome = cubiomes.biome_at(SEED, 4, px - 512, py - 512, 15)
+            assert tuple(int(c) for c in colors[biome]) == img.getpixel((px, py))

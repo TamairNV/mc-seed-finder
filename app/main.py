@@ -4,9 +4,11 @@ import os
 import pathlib
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from app import seeds, worker
@@ -17,6 +19,8 @@ from app.store import Store
 
 MAX_SEARCH = 100_000
 PUBLIC_PATHS = {"/healthz"}
+HERE = pathlib.Path(__file__).parent
+MAP_EDGE = 2048
 
 
 class SeedIn(BaseModel):
@@ -31,6 +35,8 @@ class SearchIn(BaseModel):
 def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifier,
                scorer=worker.score_seed) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
+    templates = Jinja2Templates(directory=HERE / "templates")
 
     @app.middleware("http")
     async def require_access(request: Request, call_next):
@@ -53,6 +59,10 @@ def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifi
     @app.get("/healthz")
     def healthz():
         return {"status": "ok"}
+
+    @app.get("/", response_class=HTMLResponse)
+    def index(request: Request):
+        return templates.TemplateResponse(request, "index.html")
 
     @app.post("/api/seeds")
     def add_seed(body: SeedIn):
@@ -89,6 +99,11 @@ def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifi
         except ValueError:
             raise HTTPException(404, "Unknown map layer") from None
         return FileResponse(path, media_type="image/png")
+
+    @app.get("/api/seeds/{seed}/point")
+    def get_point(seed: str, x: int = Query(ge=-MAP_EDGE, lt=MAP_EDGE), z: int = Query(ge=-MAP_EDGE, lt=MAP_EDGE)):
+        number, _ = saved_seed(seed)
+        return pool.run(worker.point, number, x, z)
 
     @app.post("/api/search", status_code=202)
     def start_search(body: SearchIn):

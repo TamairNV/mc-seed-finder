@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seed Finder</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <h1>Seed Finder</h1>
+    <p class="note">Maps use the newest world generation cubiomes supports (1.21 Winter Drop). Check any seed in Minecraft 26.4 before you commit to it, because a new version may generate it differently.</p>
+  </header>
+  <main>
+    <section class="controls" aria-label="Find seeds">
+      <form id="seed-form">
+        <label for="seed-input">Seed</label>
+        <div class="row">
+          <input id="seed-input" autocomplete="off" placeholder="Number or text">
+          <button type="submit">Check</button>
+          <button type="button" id="random-btn" class="secondary">Random</button>
+        </div>
+      </form>
+      <div class="search">
+        <label for="search-count">Seeds to try</label>
+        <div class="row">
+          <input id="search-count" type="number" min="1" max="100000" value="1000">
+          <button type="button" id="search-btn">Find Cool Seeds</button>
+          <button type="button" id="stop-btn" class="secondary" hidden>Stop</button>
+        </div>
+        <progress id="search-progress" max="1" value="0" hidden></progress>
+        <p id="search-status" class="status" role="status"></p>
+      </div>
+      <p id="error" class="error" role="alert" hidden></p>
+    </section>
+
+    <section class="map-panel" aria-label="Map">
+      <div id="map">
+        <img id="layer-weirdness" alt="Weirdness map" hidden>
+        <img id="layer-biomes" alt="Biome map" hidden>
+        <canvas id="markers" width="1024" height="1024"></canvas>
+        <p id="map-empty">Check a seed to see its map.</p>
+      </div>
+      <p id="hover" class="status">&nbsp;</p>
+      <div class="layer-controls">
+        <label for="biome-opacity">Biome overlay</label>
+        <input id="biome-opacity" type="range" min="0" max="1" step="0.05" value="0.5">
+      </div>
+      <div id="structure-toggles" class="toggles"></div>
+    </section>
+
+    <section class="details" aria-label="Seed details">
+      <div id="breakdown"><p class="status">Nothing selected yet.</p></div>
+    </section>
+
+    <section class="list" aria-label="Saved seeds">
+      <div class="list-head">
+        <h2>Your seeds</h2>
+        <label>Sort by
+          <select id="sort">
+            <option value="score">Score</option>
+            <option value="weirdness">Mean weirdness</option>
+          </select>
+        </label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Score</th><th>Spawn biome</th><th>Weirdness</th><th>Seed</th></tr></thead>
+          <tbody id="seed-list"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

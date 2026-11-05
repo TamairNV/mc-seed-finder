@@ -118,7 +118,7 @@ def test_worker_crash_returns_500_with_message(tmp_path):
 
 
 def test_sort_values(client):
-    assert client.get("/api/seeds?sort=weirdness").status_code == 200
+    assert client.get("/api/seeds?sort=peak").status_code == 200
     assert client.get("/api/seeds?sort=nope").status_code == 422
 
 
@@ -188,3 +188,20 @@ def test_unset_access_config_returns_503(tmp_path):
 def test_crafted_host_header_cannot_skip_the_token_check(tmp_path, host):
     client = build(tmp_path, verifier=DenyAll())
     assert client.get("/api/seeds", headers={"Host": host}).status_code == 403
+
+
+def test_shortlist_route_and_filter(client):
+    client.post("/api/seeds", json={"seed": "1"})
+    client.post("/api/seeds", json={"seed": "2"})
+    r = client.put("/api/seeds/2/shortlist", json={"shortlisted": True})
+    assert r.status_code == 200 and r.json()["shortlisted"] is True
+    assert [row["seed"] for row in client.get("/api/seeds?shortlist=true").json()] == ["2"]
+    assert len(client.get("/api/seeds").json()) == 2
+
+
+def test_shortlist_unsaved_seed_is_404(client):
+    assert client.put("/api/seeds/5/shortlist", json={"shortlisted": True}).status_code == 404
+
+
+def test_shortlist_bad_seed_is_400(client):
+    assert client.put("/api/seeds/hello/shortlist", json={"shortlisted": True}).status_code == 400

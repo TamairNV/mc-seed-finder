@@ -36,10 +36,18 @@
 
     <section class="map-panel" aria-label="Map">
       <div id="map">
-        <img id="layer-weirdness" alt="Weirdness map" hidden>
-        <img id="layer-biomes" alt="Biome map" hidden>
-        <canvas id="markers" width="1024" height="1024"></canvas>
+        <div id="map-world">
+          <img id="layer-weirdness" alt="Weirdness map" draggable="false" hidden>
+          <img id="layer-biomes" alt="Biome map" draggable="false" hidden>
+        </div>
+        <canvas id="markers"></canvas>
         <p id="map-empty">Check a seed to see its map.</p>
+        <p id="map-loading" hidden>Building map…</p>
+        <div class="zoom">
+          <button type="button" id="zoom-in" class="secondary" aria-label="Zoom in">+</button>
+          <button type="button" id="zoom-out" class="secondary" aria-label="Zoom out">−</button>
+          <button type="button" id="zoom-reset" class="secondary">Reset</button>
+        </div>
       </div>
       <p id="hover" class="status">&nbsp;</p>
       <div class="layer-controls">
@@ -47,6 +55,23 @@
         <input id="biome-opacity" type="range" min="0" max="1" step="0.05" value="0.5">
       </div>
       <div id="structure-toggles" class="toggles"></div>
+      <details id="help">
+        <summary>How to read this map</summary>
+        <p>The grey layer shows <strong>weirdness</strong>, a noise value Minecraft uses to shape terrain. Slide the biome overlay to 0 to see it on its own. Hover or tap a spot to read its exact value.</p>
+        <div class="scale" aria-hidden="true"><span>-1.2</span><i></i><span>+1.2</span></div>
+        <table>
+          <thead><tr><th>Weirdness</th><th>On the map</th><th>Terrain it favours</th></tr></thead>
+          <tbody>
+            <tr><td>About 0</td><td>Mid grey</td><td>Valleys</td></tr>
+            <tr><td>About ±0.67</td><td>Fairly light or dark</td><td>The highest peaks</td></tr>
+            <tr><td>About ±1</td><td>Very light or dark</td><td>Middling terrain</td></tr>
+          </tbody>
+        </table>
+        <p>Light and dark shape terrain in the same way, because only the distance from 0 sets the height. The sign can change which biome variant appears.</p>
+        <p><strong>This is a tendency, not a height map.</strong> How far inland a spot is (continentalness) and how flat it is (erosion) also decide height, and this map doesn't show them. A peak value near the sea may not become a mountain.</p>
+        <p><strong>Peak terrain %</strong> is the share of the central 4096×4096 blocks close to the peak value, so it's the number to compare for dramatic terrain. Average weirdness is usually near 0 because the highs and lows cancel out, so it says little about a seed.</p>
+        <p><strong>Score</strong> rewards structures and rare biomes near spawn, the spawn biome, biome variety and peak terrain. It only looks at the central 4096×4096 blocks, while the map shows 6144×6144.</p>
+      </details>
     </section>
 
     <section class="details" aria-label="Seed details">
@@ -56,16 +81,19 @@
     <section class="list" aria-label="Saved seeds">
       <div class="list-head">
         <h2>Your seeds</h2>
-        <label>Sort by
-          <select id="sort">
-            <option value="score">Score</option>
-            <option value="weirdness">Mean weirdness</option>
-          </select>
-        </label>
+        <div class="list-tools">
+          <label class="inline"><input type="checkbox" id="shortlist-filter"> Shortlist only</label>
+          <label class="inline">Sort by
+            <select id="sort">
+              <option value="score">Score</option>
+              <option value="peak">Peak terrain %</option>
+            </select>
+          </label>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Score</th><th>Spawn biome</th><th>Weirdness</th><th>Seed</th></tr></thead>
+          <thead><tr><th><span class="sr-only">Shortlist</span></th><th>Score</th><th>Spawn biome</th><th>Peak terrain</th><th>Seed</th></tr></thead>
           <tbody id="seed-list"></tbody>
         </table>
       </div>

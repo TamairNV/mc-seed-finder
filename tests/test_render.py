@@ -10,9 +10,9 @@ SEED = 3874681947099440070
 
 
 @pytest.mark.parametrize("layer", ["weirdness", "biomes"])
-def test_png_is_1024_square(tmp_path, layer):
+def test_png_covers_the_wider_map(tmp_path, layer):
     with Image.open(render.Layers(str(tmp_path)).path(SEED, layer)) as img:
-        assert img.size == (1024, 1024) and img.format == "PNG"
+        assert img.size == (1536, 1536) and img.format == "PNG"
 
 
 def test_grey_scale_is_fixed():
@@ -71,6 +71,6 @@ def test_biome_png_pixels_match_block_positions(tmp_path):
 
     colors = cubiomes.biome_colors()
     with Image.open(render.Layers(str(tmp_path)).path(SEED, "biomes")) as img:
-        for px, py in [(0, 0), (1023, 0), (0, 1023), (700, 200)]:
-            biome = cubiomes.biome_at(SEED, 4, px - 512, py - 512, 15)
+        for px, py in [(0, 0), (1535, 0), (0, 1535), (700, 200)]:
+            biome = cubiomes.biome_at(SEED, 4, px - 768, py - 768, 15)
             assert tuple(int(c) for c in colors[biome]) == img.getpixel((px, py))

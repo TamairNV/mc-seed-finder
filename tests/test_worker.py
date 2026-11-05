@@ -43,3 +43,14 @@ def test_score_grid_uses_the_same_height_as_the_map(monkeypatch):
     monkeypatch.setattr(cubiomes, "biome_grid", spy)
     worker.score_seed(SEED)
     assert heights == [render.MAP_Y_4]
+
+
+def test_structures_cover_the_wider_map():
+    assert any(max(abs(x), abs(z)) >= 2048 for _, x, z in score_seed(SEED).structures)
+
+
+def test_score_only_counts_structures_near_spawn():
+    from app import worker
+
+    scored = score_seed(SEED)
+    assert scored.result.breakdown["structures"] <= 30 and worker.point(SEED, 8, 8)["terrain"]

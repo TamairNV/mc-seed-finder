@@ -24,7 +24,8 @@ STRUCTURE_WEIGHTS = {
 
 TERRAIN_MAX = 10
 TERRAIN_PEAK = 0.7
-TERRAIN_FULL_SHARE = 0.30
+TERRAIN_FULL_SHARE = 0.15  # real seeds top out near 11%
+VALLEY_LIMIT = -0.6
 
 NEAR_BLOCKS = 2048
 
@@ -50,6 +51,7 @@ class Result:
     breakdown: dict[str, float]
     mean_weirdness: float
     rejected_reason: str | None
+    peak_share: float = 0.0
 
 
 def _near(distance: float) -> float:
@@ -86,10 +88,22 @@ def _structure_points(facts: WorldFacts) -> float:
     return sum(STRUCTURE_WEIGHTS.get(kind, 0) * _near(d) for kind, d in nearest.items())
 
 
-def _terrain_points(weirdness: np.ndarray) -> float:
-    peaks = 1 - np.abs(3 * np.abs(weirdness) - 2)
-    share = float((peaks >= TERRAIN_PEAK).mean())
-    return TERRAIN_MAX * min(1.0, share / TERRAIN_FULL_SHARE)
+def _peaks_and_valleys(weirdness):
+    return 1 - np.abs(3 * np.abs(weirdness) - 2)
+
+
+def _peak_share(weirdness: np.ndarray) -> float:
+    return float((_peaks_and_valleys(weirdness) >= TERRAIN_PEAK).mean())
+
+
+def terrain_hint(weirdness: float) -> str:
+    """What weirdness alone suggests. Height also depends on continentalness and erosion."""
+    value = float(_peaks_and_valleys(weirdness))
+    if value >= TERRAIN_PEAK:
+        return "Peak-type terrain"
+    if value <= VALLEY_LIMIT:
+        return "Valley-type terrain"
+    return "Mixed terrain"
 
 
 def _rejection(biome: str) -> str | None:
@@ -101,12 +115,13 @@ def _rejection(biome: str) -> str | None:
 
 
 def evaluate(facts: WorldFacts) -> Result:
+    share = _peak_share(facts.weirdness)
     breakdown = {
         "spawn_biome": float(_spawn_points(facts.spawn_biome)),
         "variety": _variety_points(facts.biomes),
         "rare_biomes": _rare_points(facts),
         "structures": _structure_points(facts),
-        "terrain": _terrain_points(facts.weirdness),
+        "terrain": TERRAIN_MAX * min(1.0, share / TERRAIN_FULL_SHARE),
     }
     reason = _rejection(facts.spawn_biome)
     return Result(
@@ -114,4 +129,5 @@ def evaluate(facts: WorldFacts) -> Result:
         breakdown=breakdown,
         mean_weirdness=float(facts.weirdness.mean()),
         rejected_reason=reason,
+        peak_share=share,
     )

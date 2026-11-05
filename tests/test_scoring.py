@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from app.scoring import WorldFacts, evaluate
+from app.scoring import WorldFacts, evaluate, terrain_hint
 
 RARE = ["mushroom_fields", "cherry_grove", "ice_spikes", "eroded_badlands", "pale_garden", "badlands",
         "bamboo_jungle", "jagged_peaks", "mangrove_swamp", "old_growth_birch_forest"]
@@ -108,3 +108,21 @@ def test_cave_biomes_do_not_count_towards_variety():
     caves = plain.copy()
     caves[0, :3] = ["dripstone_caves", "lush_caves", "deep_dark"]
     assert evaluate(facts(biomes=caves)).breakdown["variety"] == evaluate(facts(biomes=plain)).breakdown["variety"]
+
+
+def test_peak_share_is_reported():
+    assert evaluate(facts(weirdness=np.full((64, 64), 2 / 3))).peak_share == 1.0
+    assert evaluate(facts(weirdness=np.zeros((64, 64)))).peak_share == 0.0
+
+
+def test_terrain_scale_fits_real_seeds():
+    grid = np.zeros((64, 64))
+    grid[:, :5] = 2 / 3  # 5/64 is about 7.8% of the map
+    assert evaluate(facts(weirdness=grid)).breakdown["terrain"] == pytest.approx(10 * (5 / 64) / 0.15)
+
+
+@pytest.mark.parametrize("weirdness,word", [
+    (2 / 3, "Peak"), (-2 / 3, "Peak"), (0.0, "Valley"), (0.05, "Valley"), (1.0, "Mixed"), (0.33, "Mixed"),
+])
+def test_terrain_hint(weirdness, word):
+    assert terrain_hint(weirdness).startswith(word)

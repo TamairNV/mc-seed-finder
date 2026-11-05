@@ -20,7 +20,8 @@ def test_page_has_controls(tmp_path):
     r = client(tmp_path).get("/")
     assert r.status_code == 200
     for element in ["seed-input", "random-btn", "search-btn", "search-count", "stop-btn", "map",
-                    "biome-opacity", "seed-list", "breakdown", "structure-toggles"]:
+                    "biome-opacity", "seed-list", "breakdown", "structure-toggles", "zoom-in", "zoom-out", "zoom-reset",
+                    "help", "shortlist-filter"]:
         assert f'id="{element}"' in r.text
 
 
@@ -38,7 +39,7 @@ def test_point_returns_biome_and_weirdness(tmp_path):
     c = client(tmp_path)
     c.post("/api/seeds", json={"seed": str(SEED)})
     body = c.get(f"/api/seeds/{SEED}/point?x=8&z=8").json()
-    assert body["biome"] == "meadow" and isinstance(body["weirdness"], float)
+    assert body["biome"] == "meadow" and isinstance(body["weirdness"], float) and body["terrain"]
 
 
 def test_point_outside_map_is_422(tmp_path):
@@ -57,3 +58,14 @@ def test_static_urls_change_with_their_content(tmp_path):
     text = client(tmp_path).get("/").text
     assert re.search(r'/static/app\.css\?v=[0-9a-f]{12}"', text)
     assert re.search(r'/static/app\.js\?v=[0-9a-f]{12}"', text)
+
+
+def test_point_reaches_the_wider_map_edge(tmp_path):
+    c = client(tmp_path)
+    c.post("/api/seeds", json={"seed": str(SEED)})
+    assert c.get(f"/api/seeds/{SEED}/point?x=3000&z=-3000").status_code == 200
+
+
+def test_help_explains_averages_and_peaks(tmp_path):
+    text = client(tmp_path).get("/").text
+    assert "cancel out" in text and "Peak terrain" in text

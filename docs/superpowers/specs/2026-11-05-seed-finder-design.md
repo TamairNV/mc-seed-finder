@@ -150,6 +150,14 @@ The app also verifies the `Cf-Access-Jwt-Assertion` token, so it does not rely o
 
 Multi-user accounts, Nether and End maps, a pan-and-zoom infinite map, editing weights from the page, and 3D terrain.
 
+## Changes after launch (2026-11-05, requested by Tamair)
+
+- **Wider map:** 1536×1536 pixels covering 6144×6144 blocks. Scoring still covers the central 4096×4096 blocks.
+- **Zoom and drag:** up to 8×, with the map draggable slightly past its edge.
+- **Peak terrain % replaces mean weirdness** as the list column and sort, because averages nearly cancel out to 0 on every seed. Terrain points reach their maximum at a 15% share, down from 30%, because real seeds top out near 11%.
+- **Shortlist:** stored on the server. Shortlisted seeds are never trimmed by a search.
+- **Help panel and terrain hints** explain how to read the noise.
+
 ## Future scale
 
 Deeper searches are a likely later expansion. In order: run cheap spawn and structure checks before biome generation, add a coarse biome pass before the detailed one, then raise the worker limit. Consider moving the search loop to Rust or C only if profiling shows the Python around cubiomes is the bottleneck. In the feasibility test, cubiomes biome generation took about 178 of 190 ms per seed, and Rust would not speed that up without rewriting the generator. Keep `app/scoring.py` a pure function so this stays possible.

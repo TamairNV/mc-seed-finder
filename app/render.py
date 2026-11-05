@@ -9,8 +9,9 @@ from PIL import Image
 
 from app import cubiomes
 
-MAP_PIXELS = 1024
-MAP_ORIGIN_4 = -MAP_PIXELS // 2  # 1:4 coordinates, so the map covers 4096 blocks around 0,0
+MAP_PIXELS = 1536
+MAP_ORIGIN_4 = -MAP_PIXELS // 2  # 1:4 coordinates, so the map covers 6144 blocks around 0,0
+MAP_EDGE_BLOCKS = MAP_PIXELS * 2
 MAP_Y_4 = 15
 GREY_RANGE = 1.2  # fixed so brightness can be compared between seeds
 LAYERS = {"weirdness", "biomes"}

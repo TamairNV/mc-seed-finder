@@ -14,14 +14,13 @@ from pydantic import BaseModel, Field
 
 from app import seeds, worker
 from app.auth import AccessVerifier, Denied
-from app.render import Layers
+from app.render import MAP_EDGE_BLOCKS, Layers
 from app.search import AlreadyRunning, SearchManager, random_seed
 from app.store import Store
 
 MAX_SEARCH = 100_000
 PUBLIC_PATHS = {"/healthz"}
 HERE = pathlib.Path(__file__).parent
-MAP_EDGE = 2048
 
 
 def _static_version() -> str:
@@ -35,6 +34,10 @@ def _static_version() -> str:
 class SeedIn(BaseModel):
     seed: str | None = None
     random: bool = False
+
+
+class ShortlistIn(BaseModel):
+    shortlisted: bool
 
 
 class SearchIn(BaseModel):
@@ -87,8 +90,8 @@ def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifi
         return store.get(seed)
 
     @app.get("/api/seeds")
-    def list_seeds(sort: Literal["score", "weirdness"] = "score"):
-        return store.list(sort)
+    def list_seeds(sort: Literal["score", "peak"] = "score", shortlist: bool = False):
+        return store.list(sort, shortlisted_only=shortlist)
 
     def saved_seed(text: str) -> tuple[int, dict]:
         seed = seeds.parse_number(text)
@@ -101,6 +104,12 @@ def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifi
     def get_seed(seed: str):
         return saved_seed(seed)[1]
 
+    @app.put("/api/seeds/{seed}/shortlist")
+    def set_shortlist(seed: str, body: ShortlistIn):
+        number, _ = saved_seed(seed)
+        store.set_shortlisted(number, body.shortlisted)
+        return store.get(number)
+
     @app.get("/api/seeds/{seed}/layers/{layer}.png")
     def get_layer(seed: str, layer: str):
         number, _ = saved_seed(seed)
@@ -111,7 +120,8 @@ def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifi
         return FileResponse(path, media_type="image/png")
 
     @app.get("/api/seeds/{seed}/point")
-    def get_point(seed: str, x: int = Query(ge=-MAP_EDGE, lt=MAP_EDGE), z: int = Query(ge=-MAP_EDGE, lt=MAP_EDGE)):
+    def get_point(seed: str, x: int = Query(ge=-MAP_EDGE_BLOCKS, lt=MAP_EDGE_BLOCKS),
+                  z: int = Query(ge=-MAP_EDGE_BLOCKS, lt=MAP_EDGE_BLOCKS)):
         number, _ = saved_seed(seed)
         return pool.run(worker.point, number, x, z)
 

@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "meta": {
+    "lastScanned": "2026-11-05T13:57:22.560Z",
+    "fileCount": 3,
+    "hits": 0,
+    "misses": 0,
+    "renderedHash": "3dc15ec89099ec7544774bd8299111372ce39713eea58e1780a4d9467369044a",
+    "storeUpdatedAt": "2026-11-05T13:57:22.560Z",
+    "rootHash": "d316a8a0a38d47d0"
+  },
+  "files": {
+    "CLAUDE.md": {
+      "description": "OpenWolf",
+      "tokens": 99,
+      "hash": "074d6b42b583729a",
+      "size": 395,
+      "mtimeMs": 1793887042534.9294,
+      "updatedAt": "2026-11-05T13:57:22.556Z",
+      "source": "scan"
+    },
+    "docs/superpowers/plans/2026-11-05-seed-finder.md": {
+      "description": "Seed Finder Implementation Plan",
+      "tokens": 5811,
+      "hash": "d85936d73fc4c91c",
+      "size": 23249,
+      "mtimeMs": 1793886816595.1443,
+      "updatedAt": "2026-11-05T13:57:22.556Z",
+      "source": "scan"
+    },
+    "docs/superpowers/specs/2026-11-05-seed-finder-design.md": {
+      "description": "Seed Finder design",
+      "tokens": 2529,
+      "hash": "f14e8e8bda6032aa",
+      "size": 10120,
+      "mtimeMs": 1793886702121.307,
+      "updatedAt": "2026-11-05T13:57:22.556Z",
+      "source": "scan"
+    }
+  },
+  "preamble": [
+    "> Project structure index. Auto-maintained by OpenWolf hooks and daemon.",
+    "> Run `openwolf scan` to generate, or wait for the first Claude Code session.",
+    "> Status: Pending initial scan"
+  ]
+}

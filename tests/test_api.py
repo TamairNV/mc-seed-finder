@@ -13,8 +13,11 @@ SEED = 3874681947099440070
 
 
 class AllowAll:
+    def __init__(self, role="admin"):
+        self.role = role
+
     def verify(self, token):
-        return {}
+        return {"role": self.role}
 
 
 class FakePool:
@@ -131,6 +134,30 @@ def test_search_runs_and_reports(client):
     assert client.post("/api/search", json={"count": 3}).status_code == 202
     assert set(client.get("/api/search").json()) >= {"running", "tried", "target"}
     assert client.post("/api/search/stop").status_code == 200
+
+
+@pytest.mark.parametrize("claims", [{"role": "user"}, {}])
+@pytest.mark.parametrize("path,body", [("/api/search", {"count": 1}), ("/api/search/stop", None)])
+def test_only_admins_start_or_stop_searches(tmp_path, claims, path, body):
+    class Search:
+        def __getattr__(self, name):
+            raise AssertionError("touched the search")
+
+    class Verifier:
+        def verify(self, token):
+            return claims
+    assert build(tmp_path, verifier=Verifier(), search=Search()).post(path, json=body).status_code == 403
+
+
+def test_users_can_still_read_search_status_and_add_seeds(tmp_path):
+    client = build(tmp_path, verifier=AllowAll("user"))
+    assert client.get("/api/search").status_code == 200
+    assert client.post("/api/seeds", json={"seed": "5"}).status_code == 200
+
+
+def test_page_hides_search_controls_from_users(tmp_path):
+    assert '<div class="search" hidden>' in build(tmp_path, verifier=AllowAll("user")).get("/").text
+    assert '<div class="search">' in build(tmp_path, verifier=AllowAll("admin")).get("/").text
 
 
 def test_second_search_is_409(tmp_path):

@@ -50,7 +50,7 @@ def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifi
 
     @app.middleware("http")
     async def require_access(request: Request, call_next):
-        if request.url.path not in PUBLIC_PATHS:
+        if request.scope["path"] not in PUBLIC_PATHS:  # request.url is built from the Host header
             token = request.headers.get("cf-access-jwt-assertion")
             try:
                 await run_in_threadpool(verifier.verify, token)

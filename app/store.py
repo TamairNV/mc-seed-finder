@@ -71,7 +71,16 @@ class Store:
 
     def list(self, sort: str, limit: int = 500) -> list[dict]:
         with closing(self._connect()) as db:
-            rows = db.execute(f"SELECT * FROM seeds ORDER BY {_ORDER[sort]} LIMIT ?", (limit,)).fetchall()
+            rows = db.execute(
+                f"""
+                SELECT * FROM seeds
+                WHERE source = 'manual' OR seed IN (
+                    SELECT seed FROM seeds WHERE source != 'manual' ORDER BY {_ORDER[sort]} LIMIT ?
+                )
+                ORDER BY {_ORDER[sort]}
+                """,
+                (limit,),
+            ).fetchall()
         return [_row(r) for r in rows]
 
     def delete_search_seed(self, seed: int) -> None:

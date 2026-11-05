@@ -10,6 +10,7 @@
 #include <string.h>
 
 #define MC MC_NEWEST
+#define SEA_LEVEL_4 15
 
 typedef struct { int kind, x, z; } SlStructure;
 
@@ -42,7 +43,11 @@ void sl_spawn(int64_t seed, int *x, int *z, int *biome)
     Pos p = estimateSpawn(&g, NULL);
     *x = p.x;
     *z = p.z;
-    *biome = getBiomeAt(&g, 4, p.x >> 2, 15, p.z >> 2);
+    /* Read at the surface: a fixed height is underground on hills and finds cave biomes. */
+    float height;
+    mapApproxHeight(&height, NULL, &g, NULL, p.x >> 2, p.z >> 2, 1, 1);
+    int y4 = (int)height >> 2;
+    *biome = getBiomeAt(&g, 4, p.x >> 2, y4 < SEA_LEVEL_4 ? SEA_LEVEL_4 : y4, p.z >> 2);
 }
 
 int sl_biome_grid(int64_t seed, int scale, int x, int z, int w, int h, int y, int *out)

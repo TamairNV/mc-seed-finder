@@ -100,3 +100,11 @@ def test_mean_weirdness_not_in_score():
     pos = evaluate(facts(weirdness=np.full((64, 64), 2 / 3)))
     neg = evaluate(facts(weirdness=np.full((64, 64), -2 / 3)))
     assert pos.score == neg.score and pos.mean_weirdness > 0 > neg.mean_weirdness
+
+
+def test_cave_biomes_do_not_count_towards_variety():
+    names = [f"biome_{i}" for i in range(40)]
+    plain = np.array((names * 103)[:64 * 64], dtype=object).reshape(64, 64)
+    caves = plain.copy()
+    caves[0, :3] = ["dripstone_caves", "lush_caves", "deep_dark"]
+    assert evaluate(facts(biomes=caves)).breakdown["variety"] == evaluate(facts(biomes=plain)).breakdown["variety"]

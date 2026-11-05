@@ -182,3 +182,9 @@ def test_key_endpoint_failure_returns_503(tmp_path):
 def test_unset_access_config_returns_503(tmp_path):
     client = build(tmp_path, verifier=AccessVerifier(None, None))
     assert client.get("/api/seeds", headers={"Cf-Access-Jwt-Assertion": "abc"}).status_code == 503
+
+
+@pytest.mark.parametrize("host", ["x/healthz?", "x/healthz#", "x/healthz"])
+def test_crafted_host_header_cannot_skip_the_token_check(tmp_path, host):
+    client = build(tmp_path, verifier=DenyAll())
+    assert client.get("/api/seeds", headers={"Host": host}).status_code == 403

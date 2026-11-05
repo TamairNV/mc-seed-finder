@@ -40,3 +40,16 @@ def test_negative_seed_is_accepted():
 
 def test_biome_colors_shape():
     assert cubiomes.biome_colors().shape == (256, 3)
+
+
+CAVE_BIOMES = {"dripstone_caves", "lush_caves", "deep_dark"}
+
+
+def test_spawn_biome_is_read_at_the_surface_not_underground():
+    # Read as dripstone_caves when sampled at a fixed block height of 60.
+    assert cubiomes.biome_name(cubiomes.spawn(4728016566880465652)[2]) == "meadow"
+
+
+def test_spawn_biome_is_never_a_cave_across_many_seeds():
+    names = {cubiomes.biome_name(cubiomes.spawn(seed)[2]) for seed in range(300)}
+    assert not names & CAVE_BIOMES

@@ -28,6 +28,8 @@ TERRAIN_FULL_SHARE = 0.30
 
 NEAR_BLOCKS = 2048
 
+CAVE_BIOMES = {"dripstone_caves", "lush_caves", "deep_dark"}
+
 SPRUCE_SPAWNS = {"taiga", "snowy_taiga", "old_growth_pine_taiga", "old_growth_spruce_taiga"}
 
 
@@ -60,7 +62,7 @@ def _spawn_points(biome: str) -> int:
 
 
 def _variety_points(biomes: np.ndarray) -> float:
-    share = (len(set(biomes.ravel().tolist())) - VARIETY_LOW) / (VARIETY_HIGH - VARIETY_LOW)
+    share = (len(set(biomes.ravel().tolist()) - CAVE_BIOMES) - VARIETY_LOW) / (VARIETY_HIGH - VARIETY_LOW)
     return VARIETY_MAX * min(1.0, max(0.0, share))
 
 

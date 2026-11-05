@@ -70,3 +70,13 @@ def test_delete_search_seed_never_touches_manual(s):
     s.delete_search_seed(1)
     s.delete_search_seed(2)
     assert s.get(1) is None and s.get(2) is not None
+
+
+def test_manual_seeds_stay_listed_after_many_search_seeds(s):
+    save(s, 1, score=0, reason="Spawns in an ocean (ocean)", source="manual")
+    for seed in range(100, 700):
+        save(s, seed, score=50)
+    rows = s.list("score")
+    assert "1" in {r["seed"] for r in rows}
+    assert len(rows) == 501  # the newest 500 search rows plus the manual one
+    assert rows[-1]["seed"] == "1"

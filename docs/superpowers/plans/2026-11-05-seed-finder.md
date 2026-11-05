@@ -14,7 +14,7 @@
 
 - Cubiomes is pinned to commit `e61f905` and targets `MC_NEWEST` (`MC_1_21_WD`).
 - All automated tests run in Docker: `docker build -q --target test -t seed-finder-test . && docker run --rm seed-finder-test pytest <path> -v`. Below, this is written as `TEST <path>`.
-- The map covers 4096×4096 blocks centred on 0,0, at 1024×1024 pixels (scale 1:4, surface `y=15`). Scoring grids are 256×256 at 1:16 (`y=4`), the same grid used for the feasibility timings.
+- The map covers 4096×4096 blocks centred on 0,0, at 1024×1024 pixels (scale 1:4, surface `y=15`). Scoring grids are 256×256 at 1:16 (`y=15`, because cubiomes keeps vertical units at 1:4 at every horizontal scale).
 - Seeds are signed 64-bit integers, and are JSON strings in every API request and response.
 - Never write secret values anywhere. `.env` holds `CF_TEAM_DOMAIN` and `CF_AUD`, and `.env.example` lists names only.
 - Container: `127.0.0.1:8103:8000`, `cpus: 4`, `mem_limit: 2g`, uid/gid 1000, `TZ=Europe/London`, `read_only: true`, `tmpfs: [/tmp]`, `cap_drop: [ALL]`, `no-new-privileges`, state in `./data`.

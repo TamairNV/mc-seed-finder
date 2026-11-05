@@ -28,3 +28,18 @@ def test_score_seed_returns_real_world_facts():
     assert scored.spawn == (8, 8) and scored.spawn_biome == "meadow"
     assert scored.result.rejected_reason is None and 0 < scored.result.score <= 100
     assert scored.structures and all(len(s) == 3 for s in scored.structures)
+
+
+def test_score_grid_uses_the_same_height_as_the_map(monkeypatch):
+    from app import cubiomes, render, worker
+
+    real = cubiomes.biome_grid
+    heights = []
+
+    def spy(seed, scale, x, z, w, h, y):
+        heights.append(y)
+        return real(seed, scale, x, z, w, h, y)
+
+    monkeypatch.setattr(cubiomes, "biome_grid", spy)
+    worker.score_seed(SEED)
+    assert heights == [render.MAP_Y_4]

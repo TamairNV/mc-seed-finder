@@ -9,12 +9,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from app import cubiomes
+from app import cubiomes, render
 from app.scoring import Result, WorldFacts, evaluate
 
 GRID_CELLS = 256
 GRID_ORIGIN_16 = -GRID_CELLS // 2
-GRID_Y_16 = 4
+GRID_Y_4 = render.MAP_Y_4  # cubiomes keeps vertical units at 1:4 at every horizontal scale
 CELL_BLOCKS = 16
 
 
@@ -43,7 +43,7 @@ def _biome_names() -> np.ndarray:
 
 def score_seed(seed: int) -> Scored:
     x, z, biome = cubiomes.spawn(seed)
-    biomes = cubiomes.biome_grid(seed, CELL_BLOCKS, GRID_ORIGIN_16, GRID_ORIGIN_16, GRID_CELLS, GRID_CELLS, GRID_Y_16)
+    biomes = cubiomes.biome_grid(seed, CELL_BLOCKS, GRID_ORIGIN_16, GRID_ORIGIN_16, GRID_CELLS, GRID_CELLS, GRID_Y_4)
     weirdness = cubiomes.weirdness_grid(seed, GRID_ORIGIN_16 * 4, GRID_ORIGIN_16 * 4, GRID_CELLS, GRID_CELLS, 4)
     structures = [(s.kind, s.x, s.z) for s in cubiomes.structures(seed)]
     spawn_biome = cubiomes.biome_name(biome)

@@ -1,5 +1,6 @@
 """FastAPI routes. Everything except /healthz requires a valid Cloudflare Access token."""
 
+import hashlib
 import os
 import pathlib
 from typing import Literal
@@ -23,6 +24,14 @@ HERE = pathlib.Path(__file__).parent
 MAP_EDGE = 2048
 
 
+def _static_version() -> str:
+    """Cloudflare caches static files at the edge, so their URLs must change with their content."""
+    digest = hashlib.sha256()
+    for path in sorted((HERE / "static").iterdir()):
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:12]
+
+
 class SeedIn(BaseModel):
     seed: str | None = None
     random: bool = False
@@ -37,6 +46,7 @@ def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifi
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
     templates = Jinja2Templates(directory=HERE / "templates")
+    version = _static_version()
 
     @app.middleware("http")
     async def require_access(request: Request, call_next):
@@ -62,7 +72,7 @@ def create_app(pool, store: Store, layers: Layers, search: SearchManager, verifi
 
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request):
-        return templates.TemplateResponse(request, "index.html")
+        return templates.TemplateResponse(request, "index.html", {"v": version})
 
     @app.post("/api/seeds")
     def add_seed(body: SeedIn):

@@ -49,3 +49,11 @@ def test_point_outside_map_is_422(tmp_path):
 
 def test_point_for_unsaved_seed_is_404(tmp_path):
     assert client(tmp_path).get("/api/seeds/5/point?x=0&z=0").status_code == 404
+
+
+def test_static_urls_change_with_their_content(tmp_path):
+    import re
+
+    text = client(tmp_path).get("/").text
+    assert re.search(r'/static/app\.css\?v=[0-9a-f]{12}"', text)
+    assert re.search(r'/static/app\.js\?v=[0-9a-f]{12}"', text)
